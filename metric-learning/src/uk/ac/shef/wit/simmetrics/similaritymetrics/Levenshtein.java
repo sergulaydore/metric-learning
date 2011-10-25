@@ -64,14 +64,19 @@ public class Levenshtein {
      */
     private static SubCost01 dCostFunc;
 
-    public void setWeight(int i, int j, double d) { dCostFunc.setWeight(i,j,d); }
-    public double getWeight(int i, int j) { return dCostFunc.getWeight(i,j); }
+    public void setWeight(int i, int j, int k, double d) {
+        dCostFunc.setWeight(i,j,k,d);
+    }
+    
+    public double getWeight(int i, int j, int k) {
+        return dCostFunc.getWeight(i,j,k);
+    }
     
     /**
      * constructor - default (empty).
      */
-    public Levenshtein() {
-        dCostFunc = new SubCost01();
+    public Levenshtein(int n) {
+        dCostFunc = new SubCost01(n);
     }
     
     /**
@@ -128,9 +133,9 @@ public class Levenshtein {
      * @param string2
      * @return a value between 0-1 of the similarity
      */
-    public double getSimilarity(String string1, String string2) {
-        dCostFunc.initialize(string1, string2);
-        double levenshteinDistance = getUnNormalisedSimilarity(string1, string2);
+    public double getSimilarity(String string1, String string2, int k) {
+        dCostFunc.initialize(string1, string2, k);
+        double levenshteinDistance = getUnNormalisedSimilarity(string1, string2, k);
         //convert into zero to one return
 
         //get the max possible levenstein distance score for string
@@ -167,8 +172,8 @@ public class Levenshtein {
      * @param t
      * @return the levenshtein distance between given strings
      */
-    public double getUnNormalisedSimilarity(String s, String t) {
-        String[] str = dCostFunc.initialize(s,t);
+    public double getUnNormalisedSimilarity(String s, String t, int k) {
+        String[] str = dCostFunc.initialize(s,t,k);
         
 //        System.out.println(str[0]+","+str[1]);
         
@@ -205,9 +210,9 @@ public class Levenshtein {
             // Step 4
             for (j = 1; j <= m; j++) {
                 // Step 5
-                cost = dCostFunc.getSubstitutionCost(i - 1, j - 1);
-                delCost = dCostFunc.getDeleteCost(i - 1, j - 1);
-                insCost = dCostFunc.getInsertCost(i - 1, j - 1);
+                cost = dCostFunc.getSubstitutionCost(i - 1, j - 1, k);
+                delCost = dCostFunc.getDeleteCost(i - 1, j - 1, k);
+                insCost = dCostFunc.getInsertCost(i - 1, j - 1, k);
                 // Step 6
                 d[i][j] = MathFuncs.min3(d[i - 1][j] + delCost, d[i][j - 1] + 
                         insCost, d[i - 1][j - 1] + cost);
@@ -225,34 +230,34 @@ public class Levenshtein {
         return dCostFunc.getTargetAlphabet();
     }
 
-    public double[] getCostsMatrixAsArray() {
-        double[][] M = dCostFunc.getCostsMatrix();
+    public double[] getCostsMatrixAsArray(int k) {
+        double[][][] M = dCostFunc.getCostsMatrix();
         double[] Marr = new double[4032];
-        int k = 0;
+        int h = 0;
         for(int i=0; i<M.length; i++)
             for(int j=0; j<M[i].length; j++)
                 if(i != j) {
-                    Marr[k] = M[i][j];
-                    k++;
+                    Marr[h] = M[i][j][k];
+                    h++;
                 }
         return Marr;
     }
 
-    public int[] getCountMatrixAsArray() {
-        int[][] count = dCostFunc.getCountMatrix();
+    public int[] getCountMatrixAsArray(int k) {
+        int[][][] count = dCostFunc.getCountMatrix();
         int[] Carr = new int[4032];
-        int k = 0;
+        int h = 0;
         for(int i=0; i<count.length; i++)
             for(int j=0; j<count[i].length; j++)
                 if(i != j) {
-                    Carr[k] = count[i][j];
-                    k++;
+                    Carr[h] = count[i][j][k];
+                    h++;
                 }
         return Carr;
     }
 
-    public int getMatrixCheckSum() {
-        return dCostFunc.getMatrixCheckSum();
+    public int getMatrixCheckSum(int k) {
+        return dCostFunc.getMatrixCheckSum(k);
     }
 
     

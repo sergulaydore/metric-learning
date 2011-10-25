@@ -38,30 +38,42 @@ public class MetricLearning {
     static String[] targetProperties;
     
     // the source KB
-    static String sourcePath = "data/1-dblp-acm/DBLP2.csv";
+//    static String sourcePath = "data/1-dblp-acm/DBLP2.csv";
+    static String sourcePath = "data/dummy/sources.csv";
     
     // the target KB
-    static String targetPath = "data/1-dblp-acm/ACM.csv";
+//    static String targetPath = "data/1-dblp-acm/ACM.csv";
+    static String targetPath = "data/dummy/targets.csv";
     
     // The oracle's knowledge is a mapping among instances of source KB
-    // and target KB (positive classified).
-    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
-    static ArrayList<Couple> posClassified = new ArrayList<Couple>();
+    // and target KB (oracle's answers).
+//    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
+    static String mappingPath = "data/dummy/couples.csv";
+    static ArrayList<Couple> oraclesAnswers = new ArrayList<Couple>();
     
-    // The first set of positive/negative candidates
-    static ArrayList<Couple> candidates = new ArrayList<Couple>();
+    // all elements in S×T
+    static ArrayList<Couple> couples = new ArrayList<Couple>();
+    
+    // size of the most informative examples sets
+    static int MOST_INF_SIZE = 2;
+    static ArrayList<Couple> selected = new ArrayList<Couple>();
+    static ArrayList<Couple> posSelected = new ArrayList<Couple>();
+    static ArrayList<Couple> negSelected = new ArrayList<Couple>();
+    
     
     static ArrayList<Couple> pos = new ArrayList<Couple>();
     static ArrayList<Couple> neg = new ArrayList<Couple>();
     
     // The edit distance calculator
-    static Levenshtein l = new Levenshtein();
+    static Levenshtein l;
     
     // the dimensions, ergo the number of similarities applied to the properties
     static int n;
     
-    // classifier
-    static Double[] W;
+    // classifier (normal)
+    static double[] C;
+    // bias
+    static double bias;
     
     // the model
     static svm_model model;
@@ -90,61 +102,33 @@ public class MetricLearning {
         
         loadKnowledgeBases();
         loadMappings();
+        initializeClassifier();
         
-        int examples = 0;
-        // build candidates set
-        while(candidates.size() < V_SIZE) {
-            examples++;
-            Resource source = getRandomSource();
-            Resource target = getRandomTarget();
-            
-            Couple couple = new Couple(source, target);
-            
-            computeSimilarity(couple);
-            
-            // check if the couple is a candidate
-            if(couple.getSimsum() >= TAU * n) {
-                candidates.add(couple);
+        l = new Levenshtein(n);
+        
+        // for all sources and for all targets
+        for(Resource s : sources) {
+            for(Resource t : targets) {
+                Couple c = new Couple(s, t);
+                // compute the similarity
+                computeSimilarity(c);
+                // compute the quantity of information (1 / distance from the classifier)
+                computeGamma(c);
+                w(""+s.getID()+","+t.getID()+"\tsim = "+c.getSimsum()+"\tgamma = "+c.getGamma()+"\t"+classify(c));
+                couples.add(c);
+                updateBestInformatives(c, classify(c));
             }
         }
-        w("DONE: "+(int)V_SIZE+" candidates selected among "+examples+" examples ("
-                + ((double)(Math.round((V_SIZE/examples)*10000)))/100 + "%) with TAU = "+TAU);
+        w("MOST INF:");
+        for(Couple c : posSelected)
+            w(c.getSource().getID()+","+c.getTarget().getID()+" as a POS");
+        for(Couple c : negSelected)
+            w(c.getSource().getID()+","+c.getTarget().getID()+" as a NEG");
         
-        // find the points that have the most probability to be POS or NEG
-        ArrayList<Couple> sel_pos = new ArrayList<Couple>();
-        for(int i=0; i<k_pos; i++) {
-            double record = -1.0*n;
-            Couple toAdd = null;
-            for(Couple couple : candidates) {
-                double s = couple.getSimsum();
-                if(s >= record && !sel_pos.contains(couple)) {
-                    record = s;
-                    toAdd = couple;
-                }
-            }
-            if(toAdd != null)
-                sel_pos.add(toAdd);
-        }
-        ArrayList<Couple> sel_neg = new ArrayList<Couple>();
-        for(int i=0; i<k_neg; i++) {
-            double record = +2.0*n;
-            Couple toAdd = null;
-            for(Couple couple : candidates) {
-                double s = couple.getSimsum();
-                if(s <= record && !sel_neg.contains(couple)) {
-                    record = s;
-                    toAdd = couple;
-                }
-            }
-            if(toAdd != null)
-                sel_neg.add(toAdd);
-        }
+        selected.addAll(posSelected);
+        selected.addAll(negSelected);
         
-        ArrayList<Couple> selected = new ArrayList<Couple>();
-        selected.addAll(sel_pos);
-        selected.addAll(sel_neg);
-        
-        // ask the oracle...
+        // ask the oracle
         for(int i=0; i<selected.size(); i++) {
             Couple couple = selected.get(i);
             if( isPositive( couple ) ) {
@@ -152,65 +136,59 @@ public class MetricLearning {
             } else {
                 neg.add( couple );
             }
+            w("O("+couple.getSource().getID()+","+couple.getTarget().getID()+") = "+isPositive( couple ));
         }
-        // ...and compute M^1
-        weights = l.getCostsMatrixAsArray();
-        counts = l.getCountMatrixAsArray();
-        double eta_plus = 0.5, eta_minus = -0.5; // the learning rate
+        
+        double eta_plus = 0.5, eta_minus = 0.5; // the learning rate
         double f1 = 0.0;
         for(int iter=0; f1 != 1.0; iter++) {
-            // TODO change the weights
-            // we can see rho(x) as a count of the # of wrong predictions,
-            // so we can move 'for(Couple c : pos)' out of the main for. inside 
-            // we'll calculate only: sum = sum + #wrongPredictions * counts[i];
+            // compute the four categories
             double tp = 0, fp = 0, tn = 0, fn = 0;
-            for(int i=0; i<weights.length; i++) {
-                tp = 0; fp = 0; tn = 0; fn = 0;
-                double sum = 0.0;
-                for(Couple c : pos)
-                    if(rhoZero(c, true)) {
-                        sum += counts[i];
-                        fp ++;
-                    } else tp ++;
-                weights[i] = weights[i] + eta_plus * sum;
-                sum = 0.0;
-                for(Couple c : neg)
-                    if(rhoZero(c, false)) {
-                        sum += counts[i];
-                        fn ++;
-                    } else tn ++;
-                weights[i] = weights[i] + eta_minus * sum;
+            for(Couple c : pos)
+                if(rho(c, true))
+                    fp ++;
+                else tp ++;
+            for(Couple c : neg)
+                if(rho(c, false))
+                    fn ++;
+                else tn ++;
+            // for all properties...
+            for(int k=0; k<n; k++) {
+                weights = l.getCostsMatrixAsArray(k);
+                counts = l.getCountMatrixAsArray(k);
+                // update each weight
+                for(int i=0; i<weights.length; i++) {
+                    double w = weights[i] + counts[i] *
+                            (eta_plus * fp + eta_minus * fn);
+                    int a = i/63;
+                    int b = i%63;
+                    int b0 = b + (a<=b ? 1 : 0);
+                    l.setWeight(a, b0, k, w);
+                }
             }
             
-            for(int i=0; i<weights.length; i++) {
-                int a = i/63;
-                int b = i%63;
-                int b0 = b + (a<=b ? 1 : 0);
-                double w = weights[i];
-                if(l.getWeight(a,b0) != w)
-                    l.setWeight(a,b0,w);
-            }
             
-            if(tp+fp == 0) {
-                w("The original set was composed by all negatives, try again.");
-                break;
-            }
-                
+            // compute f1
             double pre = tp / (tp + fp);
             double rec = tp / (tp + fn);
             f1 = 2 * pre * rec / (pre + rec);
             
+            w((iter+1)+".\tmcs(0) = "+l.getMatrixCheckSum(0)+
+//                    "\tmcs(1) = "+l.getMatrixCheckSum(1)+"\tmcs(2) = "+l.getMatrixCheckSum(2)+
+                    "\tf1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
+            
+            // compute the new similarity according with the updated weights
             for(Couple c : selected) {
                 computeSimilarity(c);
 //                w(c.getSimsum()/(double)n+"");
             }
             
-            w((iter+1)+".\t"+"mcs = "+l.getMatrixCheckSum()+"\tf1 = "+f1+
-                    " (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
+            // TODO update the classifier fields (static double[] C, static double bias)
+            // launch the SVM
+//            updateClassifier();
         }
         
         // train classifier
-//        updateClassifier();
         
         // TODO ask oracle about most informative examples
         
@@ -225,27 +203,37 @@ public class MetricLearning {
      * @param c
      * @return 
      */
-    private static boolean rhoZero(Couple c, boolean positive) {
-        double[] wZero = new double[n];
-        ArrayList<Double> sim = c.getSimilarities();
-        for(int i=0; i<n-1; i++)
-            wZero[i] = -1;
-        wZero[n-1] = n / 2;
-        double sum = 0.0;
-        for(int i=0; i<n; i++)
-            sum += sim.get(i) * wZero[i];
-//        w("sum is "+sum+" and I'm "+(positive ? "positive" : "negative"));
-        if(sum < 0) { // O(x) = POS
-            if(positive) // C(x) = POS
+    private static boolean rho(Couple c, boolean positive) {
+        boolean clax = classify(c);
+        if(positive) { // O(x) = POS
+            if(clax) // C(x) = POS
                 return false;
             else // C(x) = NEG
                 return true;
         } else { // O(x) = NEG
-            if(positive) // C(x) = POS
+            if(clax) // C(x) = POS
                 return true;
             else // C(x) = NEG
                 return false;
         }
+    }
+    
+    /**
+     * W·X - b
+     * @param c the couple
+     * @return true if positive, false if negative
+     */
+    private static boolean classify(Couple c) {
+        ArrayList<Double> sim = c.getSimilarities();
+        double sum = 0.0;
+        for(int i=0; i<n; i++)
+            sum += sim.get(i) * C[i];
+        sum = sum + bias;
+//        w("sum is "+sum+"");
+        if(sum <= 0)
+            return true;
+        else
+            return false;
     }
     
     /**
@@ -255,7 +243,7 @@ public class MetricLearning {
     private static boolean isPositive(Couple c) {
         String s = c.getSource().getID();
         String t = c.getTarget().getID();
-        for(Couple pc : posClassified)
+        for(Couple pc : oraclesAnswers)
             if(pc.getSource().getID().equals(s) && pc.getTarget().getID().equals(t))
                 return true;
         return false;
@@ -289,44 +277,35 @@ public class MetricLearning {
         }
     }
 
-    private static Resource getRandomSource() {
-        return sources.get((int)(Math.random()*sources.size()));
-    }
-
-    private static Resource getRandomTarget() {
-        return targets.get((int)(Math.random()*targets.size()));
-    }
-
     private static void loadMappings() throws IOException {
         CSVReader reader = new CSVReader(new FileReader(mappingPath));
         reader.readNext(); // skips the column titles
         String [] nextLine;
         while ((nextLine = reader.readNext()) != null) {
-            posClassified.add(new Couple(new Resource(nextLine[0]), new Resource(nextLine[1])));
+            oraclesAnswers.add(new Couple(new Resource(nextLine[0]), new Resource(nextLine[1])));
         }
     }
 
-    private static double editDistance(String sourceStringValue, String targetStringValue) {
-        return l.getSimilarity(sourceStringValue, targetStringValue);
+    private static double editDistance(String sourceStringValue, String targetStringValue, int k) {
+        return l.getSimilarity(sourceStringValue, targetStringValue, k);
     }
 
-    private static double mahalanobisDistance(double sourceDoubleValue, double targetDoubleValue) {
+    private static double mahalanobisDistance(double sourceDoubleValue, double targetDoubleValue, int k) {
         // TODO Mahalanobis distance algorithm
         return 0.0;
     }
 
     /** 
-     * The initial classifier W should be the hyperplane that is equidistant
+     * The initial classifier C should be the hyperplane that is equidistant
      * from points (0, ..., 0) and (1, ..., 1). Analytically, it's the vector
      * [-1, ..., -1, n/2].
-     * PENDING do we really need to initialize the classifier?
      */
     private static void initializeClassifier() {
-        W = new Double[n];
-        for(Double c : W) {
-            c = new Double(-1.0);
+        C = new double[n];
+        for(int i=0; i<C.length; i++) {
+            C[i] = -1.0;
         }
-        W[n-1] = new Double(n / 2);
+        bias = (double)n / 2.0;
     }
 
     /**
@@ -473,11 +452,6 @@ public class MetricLearning {
         }
     }
     
-    private static double[] getMostInformativeExamples() {
-        // TODO getMostInformativeExamples
-        return null;
-    }
-
     private static void w(String string) {
         System.out.println(string);
     }
@@ -507,6 +481,7 @@ public class MetricLearning {
         // get couple similarities
         Set<String> propNames = source.getPropertyNames();
         couple.clearSimilarities();
+        int k = 0;
         for(String prop : propNames) {
             String sourceStringValue = source.getPropertyValue(prop);
             String targetStringValue = target.getPropertyValue(prop);
@@ -520,11 +495,69 @@ public class MetricLearning {
                 isNumeric = false;
             }
             if(isNumeric) {
-                couple.addSimilarity( mahalanobisDistance(sourceNumericValue, targetNumericValue) );
+                couple.addSimilarity( mahalanobisDistance(sourceNumericValue, targetNumericValue, k) );
 //                    System.out.println("sim(" + prop + ") = " + d);
             } else {
-                couple.addSimilarity( editDistance(sourceStringValue, targetStringValue) );
+                couple.addSimilarity( editDistance(sourceStringValue, targetStringValue, k) );
 //                    System.out.println("sim(" + prop + ") = " + d);
+            }
+            k ++;
+        }
+    }
+
+    /**
+     * Computes the measure of how a couple c is informative.
+     * Given a point Q and a classifier C:
+     * D = |(Q-P)·C| / ||C|| = (|C·Q| + bias) / ||C||
+     * where P is a point on the hyperplane. The measure is
+     * gamma = 1/D
+     * TODO normalize the gamma
+     * @param c The couple.
+     */
+    private static void computeGamma(Couple c) {
+        ArrayList<Double> Q = c.getSimilarities();
+        double numer = 0.0, denom = 0.0;
+        for(int i=0; i<n; i++) {
+            numer += Q.get(i) * C[i];
+            denom += Math.pow(C[i], 2);
+        }
+        numer += bias;
+        denom = Math.sqrt(denom);
+        c.setGamma(Math.abs(denom/numer)); // gamma = 1/D
+    }
+
+    private static void updateBestInformatives(Couple c, boolean positive) {
+        if(positive) {
+            if(posSelected.size() < MOST_INF_SIZE) {
+                posSelected.add(c);
+                return;
+            }
+            double min = 99999;
+            Couple c_min = null;
+            for(Couple c1 : posSelected)
+                if(c1.getGamma() < min) {
+                    min = c1.getGamma();
+                    c_min = c1;
+                }
+            if(c.getGamma() > min) {
+                posSelected.add(c);
+                posSelected.remove(c_min);
+            }
+        } else {
+            if(negSelected.size() < MOST_INF_SIZE) {
+                negSelected.add(c);
+                return;
+            }
+            double min = 99999;
+            Couple c_min = null;
+            for(Couple c1 : negSelected)
+                if(c1.getGamma() < min) {
+                    min = c1.getGamma();
+                    c_min = c1;
+                }
+            if(c.getGamma() > min) {
+                negSelected.add(c);
+                negSelected.remove(c_min);
             }
         }
     }

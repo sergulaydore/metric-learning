@@ -56,28 +56,42 @@ public class SubCost01  {
      * Costs matrix, dimension: 64x64
      * 64 = 26 characters * 2 cases + 10 digits + space + empty string
      */
-    private static double[][] M = new double[64][64];
-    private static int[][] count = new int[64][64];
-    private final int EMPTY_STRING = M.length-1;
+    private static double[][][] M;
+    private static int[][][] count;
+    private static final int MDIM = 64;
+    
+    private final int EMPTY_STRING = MDIM-1;
     private String source, target;
+    private static int N;
     
-    public void setWeight(int i, int j, double d) { M[i][j] = d; }
-    public double getWeight(int i, int j) { return M[i][j]; }
     
-    public SubCost01() {
+    public void setWeight(int i, int j, int k, double d) {
+        M[i][j][k] = d;
+    }
+    
+    public double getWeight(int i, int j, int k) {
+        return M[i][j][k];
+    }
+    
+    public SubCost01(int n) {
+        N = n;
+        M = new double[MDIM][MDIM][N];
+        count = new int[MDIM][MDIM][N];
         // initialize the costs matrix
-        for(int i=0; i<M.length; i++) {
-            for(int j=0; j<M[i].length; j++) {
-                if(i == j)
-                    M[i][j] = 0.0;
-                else
-                    M[i][j] = 1.0;
-                count[i][j] = 0;
+        for(int i=0; i<MDIM; i++) {
+            for(int j=0; j<MDIM; j++) {
+                for(int k=0; k<N; k++) {
+                    if(i == j)
+                        M[i][j][k] = 0.0;
+                    else
+                        M[i][j][k] = 1.0;
+                    count[i][j][k] = 0;
+                }
             }
         }
     }
     
-    public String[] initialize(String source, String target) {
+    public String[] initialize(String source, String target, int k) {
         String[] str = new String[2];
         
         this.source = filter(source);
@@ -85,15 +99,15 @@ public class SubCost01  {
         str[0] = this.source;
         str[1] = this.target;
         
-        for(int i=0; i<M.length; i++)
-            for(int j=0; j<M[i].length; j++)
-                count[i][j] = 0;
+        for(int i=0; i<MDIM; i++)
+            for(int j=0; j<MDIM; j++)
+                count[i][j][k] = 0;
         
         return str;
     }
 
-    public double[][] getCostsMatrix() { return M; }
-    public int[][] getCountMatrix() { return count; }
+    public double[][][] getCostsMatrix() { return M; }
+    public int[][][] getCountMatrix() { return count; }
 
     /**
      * returns the name of the cost function.
@@ -105,15 +119,15 @@ public class SubCost01  {
     }
     
     
-    public double getDeleteCost(int i, int i0) {
-        count[charToPosition(source.charAt(i))][EMPTY_STRING] ++;
-        return M[charToPosition(source.charAt(i))][EMPTY_STRING];
+    public double getDeleteCost(int i, int i0, int k) {
+        count[charToPosition(source.charAt(i))][EMPTY_STRING][k] ++;
+        return M[charToPosition(source.charAt(i))][EMPTY_STRING][k];
     }
 
     
-    public double getInsertCost(int i, int i0) {
-        count[EMPTY_STRING][charToPosition(target.charAt(i0))] ++;
-        return M[EMPTY_STRING][charToPosition(target.charAt(i0))];
+    public double getInsertCost(int i, int i0, int k) {
+        count[EMPTY_STRING][charToPosition(target.charAt(i0))][k] ++;
+        return M[EMPTY_STRING][charToPosition(target.charAt(i0))][k];
     }
 
     private int charToPosition(char c) {
@@ -138,14 +152,15 @@ public class SubCost01  {
      * @return the cost of a given substitution d(i,j) where d(i,j) = 1 if i!=j, 0 if i==j
      */
     
-    public double getSubstitutionCost(int string1Index, int string2Index) {
-        count[charToPosition(source.charAt(string1Index))][charToPosition(target.charAt(string2Index))] ++;
+    public double getSubstitutionCost(int string1Index, int string2Index, int k) {
+        count[charToPosition(source.charAt(string1Index))][charToPosition(target.charAt(string2Index))][k] ++;
 //        System.out.println("between "+str1.charAt(string1Index)+" and "+str2.charAt(string2Index));
         if (source.charAt(string1Index) == target.charAt(string2Index)) {
             return 0.0;
         } else {
             return M[charToPosition(source.charAt(string1Index))]
-                    [charToPosition(target.charAt(string2Index))];
+                    [charToPosition(target.charAt(string2Index))]
+                    [k];
         }
     }
 
@@ -155,14 +170,14 @@ public class SubCost01  {
      * @return the maximum possible cost
      */
     
-    public double getMaxCost() {
-        double max = M[0][0];
-        for(int i=0; i<M.length; i++)
-            for(int j=0; j<M[i].length; j++)
-                if(M[i][j] > max)
-                    max = M[i][j];
-        return max;
-    }
+//    public double getMaxCost() {
+//        double max = M[0][0];
+//        for(int i=0; i<M.length; i++)
+//            for(int j=0; j<M[i].length; j++)
+//                if(M[i][j] > max)
+//                    max = M[i][j];
+//        return max;
+//    }
 
     /**
      * returns the minimum possible cost.
@@ -170,14 +185,14 @@ public class SubCost01  {
      * @return the minimum possible cost
      */
     
-    public double getMinCost() {
-        double min = M[0][0];
-        for(int i=0; i<M.length; i++)
-            for(int j=0; j<M[i].length; j++)
-                if(M[i][j] < min)
-                    min = M[i][j];
-        return min;
-    }
+//    public double getMinCost() {
+//        double min = M[0][0];
+//        for(int i=0; i<M.length; i++)
+//            for(int j=0; j<M[i].length; j++)
+//                if(M[i][j] < min)
+//                    min = M[i][j];
+//        return min;
+//    }
 
     
     // PENDING: do we need the alphabet?
@@ -210,11 +225,11 @@ public class SubCost01  {
         return sOut;
     }
 
-    public int getMatrixCheckSum() {
+    public int getMatrixCheckSum(int k) {
         int sum =0;
-        for(int i=0; i<M.length; i++)
-            for(int j=0; j<M[i].length; j++)
-                sum += M[i][j];
+        for(int i=0; i<MDIM; i++)
+            for(int j=0; j<MDIM; j++)
+                sum += M[i][j][k];
         return sum;
     }
 

@@ -16,6 +16,16 @@ public class Couple {
     private Resource target;
     
     private ArrayList<Double> similarities;
+    
+    private double gamma;
+
+    public double getGamma() {
+        return gamma;
+    }
+
+    public void setGamma(double gamma) {
+        this.gamma = gamma;
+    }
 
     public double getSimsum() {
         double sum = 0.0;

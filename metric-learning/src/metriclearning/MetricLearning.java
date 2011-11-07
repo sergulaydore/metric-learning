@@ -55,14 +55,15 @@ public class MetricLearning {
     static ArrayList<Couple> couples = new ArrayList<Couple>();
     
     // size of the most informative examples sets
-    static int MOST_INF_SIZE = 2;
+    static int MOST_INF_SIZE = 10;
     static ArrayList<Couple> selected = new ArrayList<Couple>();
     static ArrayList<Couple> posSelected = new ArrayList<Couple>();
     static ArrayList<Couple> negSelected = new ArrayList<Couple>();
     
+    static ArrayList<Couple> actualPos = new ArrayList<Couple>();
+    static ArrayList<Couple> actualNeg = new ArrayList<Couple>();
     
-    static ArrayList<Couple> pos = new ArrayList<Couple>();
-    static ArrayList<Couple> neg = new ArrayList<Couple>();
+    static ArrayList<Couple> answered = new ArrayList<Couple>();
     
     // The edit distance calculator
     static Levenshtein l;
@@ -70,9 +71,8 @@ public class MetricLearning {
     // the dimensions, ergo the number of similarities applied to the properties
     static int n;
     
-    // classifier (normal)
+    // linear classifier and its bias
     static double[] C;
-    // bias
     static double bias;
     
     // the model
@@ -84,16 +84,22 @@ public class MetricLearning {
     // training errors upper bound
     static double NU = 0.01;
 
-    // the candidate set size
-    static final double V_SIZE = 100;
-    static int k_pos = 5, k_neg = 5;
+    // the learning rates
+    static double eta_plus = 0.5, eta_minus = -0.5; 
     
-    // the weights of the perceptron
+    // weights (and counts) of the perceptron
     static double[] weights = new double[4032];
     static int[] counts = new int[4032];
     
+    // sets to calculate precision and recall
+    static double tp = 0, fp = 0, tn = 0, fn = 0;
+    
+    // vector used to normalize the weights
+    static double[] oldmax;
+    
     // output for the Matlab/Octave file
     static String outString = "";
+    static boolean createOctaveScript = false;
 
     /**
      * @param args the command line arguments
@@ -105,118 +111,104 @@ public class MetricLearning {
         initializeClassifier();
         
         l = new Levenshtein(n);
+                
+        // initialize the weights normalizer
+        oldmax = new double[n];
+        for(int i=0; i<n; i++)
+            oldmax[i] = 1.0;
         
         // for all sources and for all targets
         for(Resource s : sources) {
             for(Resource t : targets) {
                 Couple c = new Couple(s, t);
-                // compute the similarity
-                computeSimilarity(c);
-                // compute the quantity of information (1 / distance from the classifier)
-                computeGamma(c);
-                w(""+s.getID()+","+t.getID()+"\tsim = "+c.getSimsum()+"\tgamma = "+c.getGamma()+"\t"+classify(c));
                 couples.add(c);
-                updateBestInformatives(c, classify(c));
+                // compute the similarity
+                c.initializeCount(n);
+                computeSimilarity(c);
+                System.out.print(c.getSimsum()+"\t");
             }
         }
-        w("MOST INF:");
-        for(Couple c : posSelected)
-            w(c.getSource().getID()+","+c.getTarget().getID()+" as a POS");
-        for(Couple c : negSelected)
-            w(c.getSource().getID()+","+c.getTarget().getID()+" as a NEG");
+        w("");
         
-        selected.addAll(posSelected);
-        selected.addAll(negSelected);
-        
-        // ask the oracle
-        for(int i=0; i<selected.size(); i++) {
-            Couple couple = selected.get(i);
-            if( isPositive( couple ) ) {
-                pos.add( couple );
-            } else {
-                neg.add( couple );
-            }
-            w("O("+couple.getSource().getID()+","+couple.getTarget().getID()+") = "+isPositive( couple ));
-        }
-        
-        double eta_plus = 0.5, eta_minus = 0.5; // the learning rate
         double f1 = 0.0;
-        for(int iter=0; f1 != 1.0; iter++) {
-            // compute the four categories
-            double tp = 0, fp = 0, tn = 0, fn = 0;
-            for(Couple c : pos)
-                if(rho(c, true))
-                    fp ++;
-                else tp ++;
-            for(Couple c : neg)
-                if(rho(c, false))
-                    fn ++;
-                else tn ++;
-            // for all properties...
-            for(int k=0; k<n; k++) {
-                weights = l.getCostsMatrixAsArray(k);
-                counts = l.getCountMatrixAsArray(k);
-                // update each weight
-                for(int i=0; i<weights.length; i++) {
-                    double w = weights[i] + counts[i] *
-                            (eta_plus * fp + eta_minus * fn);
-                    int a = i/63;
-                    int b = i%63;
-                    int b0 = b + (a<=b ? 1 : 0);
-                    l.setWeight(a, b0, k, w);
+        for(int iter=0; ; iter++) {
+//            w("\n----- ITER #"+iter+" -----");
+            
+            posSelected.clear();
+            negSelected.clear();
+            
+            // compute gamma and update the set of most informative examples
+            for(Couple c : couples) {
+                if(!answered.contains(c)) {
+                    computeGamma(c);
+                    updateSelected(c);
                 }
             }
-            
-            
-            // compute f1
-            double pre = tp / (tp + fp);
-            double rec = tp / (tp + fn);
-            f1 = 2 * pre * rec / (pre + rec);
-            
-            w((iter+1)+".\tmcs(0) = "+l.getMatrixCheckSum(0)+
-//                    "\tmcs(1) = "+l.getMatrixCheckSum(1)+"\tmcs(2) = "+l.getMatrixCheckSum(2)+
-                    "\tf1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
-            
-            // compute the new similarity according with the updated weights
-            for(Couple c : selected) {
-                computeSimilarity(c);
-//                w(c.getSimsum()/(double)n+"");
+//            w("MOST INF:"); // print the m.inf.ex.
+//            for(Couple c : posSelected)
+//                w("C("+c.getSource().getID()+","+c.getTarget().getID()+") = true");
+//            for(Couple c : negSelected)
+//                w("C("+c.getSource().getID()+","+c.getTarget().getID()+") = false");
+
+            selected.clear();
+            selected.addAll(posSelected);
+            selected.addAll(negSelected);
+
+            // ask the oracle
+            for(int i=0; i<selected.size(); i++) {
+                Couple couple = selected.get(i);
+                if( isPositive( couple ) ) {
+                    actualPos.add( couple );
+                } else {
+                    actualNeg.add( couple );
+                }
+                answered.add(couple);
+                w("O("+couple.getSource().getID()+","+couple.getTarget().getID()+") = "+isPositive( couple ));
             }
             
-            // TODO update the classifier fields (static double[] C, static double bias)
-            // launch the SVM
-//            updateClassifier();
+            w("");
+            for(int miter = 0; f1 != 1.0 && miter<100; miter++) {
+                System.out.print(miter+".\t");
+                f1 = computeF1();
+                computeM();
+            
+                l.resetCount();
+                for(Couple c: couples)
+                    c.resetCount();
+
+                // compute the new similarity according with the updated weights
+                for(Couple c : couples) {
+                    computeSimilarity(c);
+                    System.out.print(c.getSimsum()+"\t");
+                }
+                w("");
+                
+            }
+            
+            // train classifier
+            updateClassifier();
+            
+            System.out.print((iter+1)+"\t");
+            f1 = computeF1();
+            
+            // loop break conditions
+            if(answered.size() == couples.size() || f1 == 1.0)
+                break;
+            
+            
         }
         
-        // train classifier
+        double[][][] M = l.getCostsMatrix();
+        for(int i=0; i<M.length; i++) {
+            for(int j=0; j<M[i].length; j++)
+                System.out.print(((double)(int)(M[i][j][0]*1000))/1000+"\t");
+            w("");
+        }
         
-        // TODO ask oracle about most informative examples
-        
-        // TODO update weights of M (copy the code above)
-        
-//        saveToFile(0);
-        
+        if(createOctaveScript)
+            createOctaveScript(0);
     }
     
-    /**
-     * The function returns true iff the couple hasn't been classified correctly.
-     * @param c
-     * @return 
-     */
-    private static boolean rho(Couple c, boolean positive) {
-        boolean clax = classify(c);
-        if(positive) { // O(x) = POS
-            if(clax) // C(x) = POS
-                return false;
-            else // C(x) = NEG
-                return true;
-        } else { // O(x) = NEG
-            if(clax) // C(x) = POS
-                return true;
-            else // C(x) = NEG
-                return false;
-        }
-    }
     
     /**
      * W·X - b
@@ -286,8 +278,8 @@ public class MetricLearning {
         }
     }
 
-    private static double editDistance(String sourceStringValue, String targetStringValue, int k) {
-        return l.getSimilarity(sourceStringValue, targetStringValue, k);
+    private static double editDistance(String sourceStringValue, String targetStringValue, int k, Couple c) {
+        return l.getDijkstraSimilarity(sourceStringValue, targetStringValue, k, c);
     }
 
     private static double mahalanobisDistance(double sourceDoubleValue, double targetDoubleValue, int k) {
@@ -314,30 +306,26 @@ public class MetricLearning {
      */
     private static void updateClassifier() {
         svm_problem problem = new svm_problem();
-        problem.l = pos.size()+neg.size();
-        svm_node[][] x = new svm_node[pos.size()+neg.size()][n];
-        double[] y = new double[pos.size()+neg.size()];
-        for(int i=0; i<pos.size(); i++) {
-            ArrayList<Double> p = pos.get(i).getSimilarities();
+        problem.l = actualPos.size()+actualNeg.size();
+        svm_node[][] x = new svm_node[actualPos.size()+actualNeg.size()][n];
+        double[] y = new double[actualPos.size()+actualNeg.size()];
+        for(int i=0; i<actualPos.size(); i++) {
+            ArrayList<Double> p = actualPos.get(i).getSimilarities();
             for(int j=0; j<p.size(); j++) {
                 x[i][j] = new svm_node();
                 x[i][j].index = j;
                 x[i][j].value = p.get(j);
-//                w(p.get(j)+", ");
             }
             y[i] = 1;
-//            w("TRUE");
         }
-        for(int i=pos.size(); i<pos.size()+neg.size(); i++) {
-            ArrayList<Double> p = neg.get(i-pos.size()).getSimilarities();
+        for(int i=actualPos.size(); i<actualPos.size()+actualNeg.size(); i++) {
+            ArrayList<Double> p = actualNeg.get(i-actualPos.size()).getSimilarities();
             for(int j=0; j<p.size(); j++) {
                 x[i][j] = new svm_node();
                 x[i][j].index = j;
                 x[i][j].value = p.get(j);
-//                w(p.get(j)+", ");
             }
             y[i] = -1;
-//            w("FALSE");
         }
         problem.x = x;
         problem.y = y;
@@ -352,71 +340,81 @@ public class MetricLearning {
         // sv_coef = ( 1 ; nSV )
         double[][] sv_coef = model.sv_coef;
         
-        s("hold off;",true);
-        // for each dimension...
-        for(int j=0; j<x[0].length; j++) {
-            // all positives...
-            s("x"+j+"p = [",false);
-            for(int i=0; i<pos.size(); i++)
-                s(x[i][j].value+" ",false);
-            s("];",true);
-            // all negatives...
-            s("x"+j+"n = [",false);
-            for(int i=pos.size(); i<x.length; i++)
-                s(x[i][j].value+" ",false);
-            s("];",true);
+        // calculate w and b
+        // w = sv' * sv_coef' = (sv_coef * sv)' = ( n ; 1 )
+        // b = -rho
+        double[][] w = new double[sv[0].length][sv_coef.length];
+        int signum = (model.label[0] == -1.0) ? 1 : -1;
+        
+        w = LinearAlgebra.transpose(LinearAlgebra.times(sv_coef,toDouble(sv)));
+        double b = -model.rho[0];
+        
+        for(int i=0; i<C.length; i++) {
+            C[i] = signum * w[i][0];
+            w("C["+i+"] = "+C[i]);
         }
         
-        if(sv.length > 0) {
-            
-            // calculating w
-            // w = sv' * sv_coef' = (sv_coef * sv)' = ( n ; 1 )
-            // b = -rho
-            double[][] w = new double[sv[0].length][sv_coef.length];
-            w = LinearAlgebra.transpose(LinearAlgebra.times(sv_coef,toDouble(sv)));
-            int signum = (model.label[0] == -1.0) ? 1 : -1;
-            double b = (model.label[0] == -1.0) ? model.rho[0] : -(model.rho[0]);
-
-    //        double[][] xd = toDouble(x);
-    //        for(int i=0; i<x.length; i++)
-    //            s("#"+i+".\tprediction = "+predict(xd[i])+"\tactual = "+y[i],true);
-
-            for(int i=0; i<w.length; i++)
-                s("w"+i+" = "+w[i][0]+";",true);
-
-            switch(n) {
-                case 2:
-                    s("q = -(" + b + ")/w1;",true);
-                    s("plot(x0p,x1p,'xb'); hold on; "
-                            + "plot(x0n,x1n,'xr');",true);
-                    s("xl = [0:0.025:1];",true);
-                    s("yl = "+signum+" * xl * w0/w1 + q;",true);
-                    s("plot(xl,yl,'k');",true);
-                    s("axis([0 1 0 1]);",true);
-                    break;
-                case 3:
-                    s("if w2 == 0\nw2 = w1;\nw1 = 0;\nq = -("+b+")/w2;\n"
-                            + "xT = x2;\nx2 = x1;\nx1 = xT;\nelse\nq = -(" + b + ")/w2;\nend",true);
-                    s("plot3(x0p,x1p,x2p,'xb'); hold on; "
-                            + "plot3(x0n,x1n,x2n,'xr');",true);
-                    s("x = [0:0.025:1];",true);
-                    s("[xx,yy] = meshgrid(x,x);",true);
-                    s("zz = "+signum+" * w0/w2 * xx + "+signum+" * w1/w2 * yy + q;",true);
-                    s("mesh(xx,yy,zz);",true);
-                    s("axis([0 1 0 1 0 1]);",true);
-                    break;
+        bias = signum * b;
+        w("bias = "+bias);
+        
+        // if needed, save the Matlab/Octave script
+        if(createOctaveScript) {
+            s("hold off;",true);
+            // for each dimension...
+            for(int j=0; j<x[0].length; j++) {
+                // all positives...
+                s("x"+j+"p = [",false);
+                for(int i=0; i<actualPos.size(); i++)
+                    s(x[i][j].value+" ",false);
+                s("];",true);
+                // all negatives...
+                s("x"+j+"n = [",false);
+                for(int i=actualPos.size(); i<x.length; i++)
+                    s(x[i][j].value+" ",false);
+                s("];",true);
             }
-           
-            w(svm.svm_check_parameter(problem, parameter));
-            w(""+parameter.C);
-        } else {
-            // TODO what to do when the svm fails?
+
+            if(sv.length > 0) {
+
+        //        double[][] xd = toDouble(x);
+        //        for(int i=0; i<x.length; i++)
+        //            w("#"+i+".\tprediction = "+predict(xd[i])+"\tactual = "+y[i]);
+
+                for(int i=0; i<w.length; i++)
+                    s("w"+i+" = "+w[i][0]+";",true);
+
+                switch(n) {
+                    case 2:
+                        s("q = -(" + b + ")/w1;",true);
+                        s("plot(x0p,x1p,'xb'); hold on; "
+                                + "plot(x0n,x1n,'xr');",true);
+                        s("xl = [0:0.025:1];",true);
+                        s("yl = "+signum+" * xl * w0/w1 + q;",true);
+                        s("plot(xl,yl,'k');",true);
+                        s("axis([0 1 0 1]);",true);
+                        break;
+                    case 3:
+                        s("if w2 == 0\nw2 = w1;\nw1 = 0;\nq = -("+b+")/w2;\n"
+                                + "xT = x2;\nx2 = x1;\nx1 = xT;\nelse\nq = -(" + b + ")/w2;\nend",true);
+                        s("plot3(x0p,x1p,x2p,'xb'); hold on; "
+                                + "plot3(x0n,x1n,x2n,'xr');",true);
+                        s("x = [0:0.025:1];",true);
+                        s("[xx,yy] = meshgrid(x,x);",true);
+                        s("zz = "+signum+" * w0/w2 * xx + "+signum+" * w1/w2 * yy + q;",true);
+                        s("mesh(xx,yy,zz);",true);
+                        s("axis([0 1 0 1 0 1]);",true);
+                        break;
+                }
+                
+            } else {
+                // TODO what to do when there are no SVs?
+            }
         }
     }
 
     private static void s(String out, boolean newline) {
         System.out.print(out+(newline ? "\n" : ""));
-//        outString += out+(newline ? "\n" : "");
+        outString += out+(newline ? "\n" : "");
     }
 
     private static double[][] toDouble(svm_node[][] sv) {
@@ -438,7 +436,7 @@ public class MetricLearning {
         return svm.svm_predict(model, svm_nds);
     }
 
-    private static void saveToFile(int i) {
+    private static void createOctaveScript(int i) {
         try{
             // Create file 
             FileWriter fstream = new FileWriter("svmplot"+i+".m");
@@ -454,24 +452,6 @@ public class MetricLearning {
     
     private static void w(String string) {
         System.out.println(string);
-    }
-
-    /** 
-     * The method returns true if the points are correctly separable, i.e.
-     * linearly separable and sorted.
-     * TODO change method name
-     */
-    private static boolean isCorrectlySeparable() {
-        for(Couple x : pos) {
-            ArrayList<Double> x_sim = x.getSimilarities();
-            for(Couple y : neg) {
-                ArrayList<Double> y_sim = y.getSimilarities();
-                for(int i=0; i<n; i++)
-                    if(x_sim.get(i) <= y_sim.get(i))
-                        return false;
-            }
-        }
-        return true;
     }
 
     private static void computeSimilarity(Couple couple) {
@@ -498,7 +478,7 @@ public class MetricLearning {
                 couple.addSimilarity( mahalanobisDistance(sourceNumericValue, targetNumericValue, k) );
 //                    System.out.println("sim(" + prop + ") = " + d);
             } else {
-                couple.addSimilarity( editDistance(sourceStringValue, targetStringValue, k) );
+                couple.addSimilarity( editDistance(sourceStringValue, targetStringValue, k, couple) );
 //                    System.out.println("sim(" + prop + ") = " + d);
             }
             k ++;
@@ -506,9 +486,9 @@ public class MetricLearning {
     }
 
     /**
-     * Computes the measure of how a couple c is informative.
-     * Given a point Q and a classifier C:
-     * D = |(Q-P)·C| / ||C|| = (|C·Q| + bias) / ||C||
+     * Computes the measure of how much a couple is informative.
+     * Given a point Q and a classifier C, the distance D is
+     * D = |(Q-P)·C| / ||C|| = |C·Q + bias| / ||C||
      * where P is a point on the hyperplane. The measure is
      * gamma = 1/D
      * TODO normalize the gamma
@@ -525,39 +505,131 @@ public class MetricLearning {
         denom = Math.sqrt(denom);
         c.setGamma(Math.abs(denom/numer)); // gamma = 1/D
     }
+    
+    /**
+     * Updates the positive and negative sets of best informative examples.
+     * @param c 
+     */
+    private static void updateSelected(Couple c) {
+        if(!answered.contains(c)) {
+            if(classify(c)) {
+                if(posSelected.size() < MOST_INF_SIZE) {
+                    posSelected.add(c);
+                    return;
+                }
+                double min = 99999;
+                Couple c_min = null;
+                for(Couple c1 : posSelected)
+                    if(c1.getGamma() < min) {
+                        min = c1.getGamma();
+                        c_min = c1;
+                    }
+                if(c.getGamma() > min) {
+                    posSelected.add(c);
+                    posSelected.remove(c_min);
+                }
+            } else {
+                if(negSelected.size() < MOST_INF_SIZE) {
+                    negSelected.add(c);
+                    return;
+                }
+                double min = 99999;
+                Couple c_min = null;
+                for(Couple c1 : negSelected)
+                    if(c1.getGamma() < min) {
+                        min = c1.getGamma();
+                        c_min = c1;
+                    }
+                if(c.getGamma() > min) {
+                    negSelected.add(c);
+                    negSelected.remove(c_min);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Computes the F-Score, or F1.
+     * @return The F-score.
+     */
+    private static double computeF1() {
+        // compute the four categories
+        tp = 0; fp = 0; tn = 0; fn = 0;
+        for(Couple c : actualPos)
+            if(classify(c)) {
+                tp ++;
+                c.setClassification(Couple.TP);
+            } else {
+                fp ++;
+                c.setClassification(Couple.FP);
+            }
+        for(Couple c : actualNeg)
+            if(classify(c)) {
+                fn ++;
+                c.setClassification(Couple.FN);
+            } else {
+                tn ++;
+                c.setClassification(Couple.TN);
+            }
 
-    private static void updateBestInformatives(Couple c, boolean positive) {
-        if(positive) {
-            if(posSelected.size() < MOST_INF_SIZE) {
-                posSelected.add(c);
-                return;
+        // compute f1
+        double pre = tp / (tp + fp);
+        double rec = tp / (tp + fn);
+        double f1 = 2 * pre * rec / (pre + rec);
+
+        w("mcs(0) = "+l.getMatrixCheckSum(0)+
+//                    "\tmcs(1) = "+l.getMatrixCheckSum(1)+"\tmcs(2) = "+l.getMatrixCheckSum(2)+
+                "\tf1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
+        return f1;
+    }
+    
+    private static void computeM() {
+        int[] countSumFalse = new int[4032];
+        int[] countSumTrue = new int[4032];
+        // for all properties...
+        for(int k=0; k<n; k++) {
+            // sum up error weights
+            for(int i=0; i<4032; i++) {
+                countSumFalse[i] = 0;
+                countSumTrue[i] = 0;
             }
-            double min = 99999;
-            Couple c_min = null;
-            for(Couple c1 : posSelected)
-                if(c1.getGamma() < min) {
-                    min = c1.getGamma();
-                    c_min = c1;
+            for(Couple c : couples) {
+                if(c.getClassification() == Couple.FP || c.getClassification() == Couple.FN) {
+                    int[] cArr = c.getCountMatrixAsArray(k);
+                    for(int i=0; i<4032; i++)
+                        countSumFalse[i] += cArr[i];
                 }
-            if(c.getGamma() > min) {
-                posSelected.add(c);
-                posSelected.remove(c_min);
-            }
-        } else {
-            if(negSelected.size() < MOST_INF_SIZE) {
-                negSelected.add(c);
-                return;
-            }
-            double min = 99999;
-            Couple c_min = null;
-            for(Couple c1 : negSelected)
-                if(c1.getGamma() < min) {
-                    min = c1.getGamma();
-                    c_min = c1;
+                if(c.getClassification() == Couple.TP || c.getClassification() == Couple.TN) {
+                    int[] cArr = c.getCountMatrixAsArray(k);
+                    for(int i=0; i<4032; i++)
+                        countSumTrue[i] += cArr[i];
                 }
-            if(c.getGamma() > min) {
-                negSelected.add(c);
-                negSelected.remove(c_min);
+            }
+            
+            weights = l.getCostsMatrixAsArray(k);
+//            counts = l.getCountMatrixAsArray(k);
+            double max = 0.0;
+            for(int i=0; i<weights.length; i++) {
+                // TODO change count method
+                // we should count how many times a weight was used
+                // *only* when we have errors (fp and fn).
+                weights[i] = Math.pow(weights[i], 1) * oldmax[k] +
+                        countSumFalse[i] * eta_plus +
+                        countSumTrue[i] * eta_minus;
+                if(weights[i] > max)
+                    max = weights[i];
+            }
+            oldmax[k] = max;
+            // update and normalize each weight
+            // w' = root3(w / M)
+            for(int i=0; i<weights.length; i++) {
+                int a = i/63;
+                int b = i%63;
+                int b0 = b + (a<=b ? 1 : 0);
+                if(weights[i] < 0)
+                    weights[i] = 0;
+                l.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
+//                w(a+","+b0+","+k+" = "+weights[i]+"/"+max+"^0.3 = "+Math.pow(weights[i]/max, 0.3333));
             }
         }
     }

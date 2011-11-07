@@ -39,6 +39,9 @@
 
 package uk.ac.shef.wit.simmetrics.similaritymetrics;
 
+import de.vogella.algorithms.dijkstra.model.DijkstraSimilarity;
+import java.util.ArrayList;
+import metriclearning.Couple;
 import uk.ac.shef.wit.simmetrics.math.MathFuncs;
 import uk.ac.shef.wit.simmetrics.similaritymetrics.costfunctions.SubCost01;
 
@@ -133,9 +136,9 @@ public class Levenshtein {
      * @param string2
      * @return a value between 0-1 of the similarity
      */
-    public double getSimilarity(String string1, String string2, int k) {
+    public double getSimilarity(String string1, String string2, int k, Couple c) {
         dCostFunc.initialize(string1, string2, k);
-        double levenshteinDistance = getUnNormalisedSimilarity(string1, string2, k);
+        double levenshteinDistance = getUnNormalisedSimilarity(string1, string2, k, c);
         //convert into zero to one return
 
         //get the max possible levenstein distance score for string
@@ -152,6 +155,25 @@ public class Levenshtein {
             return 1.0f - (levenshteinDistance / maxLen);
         }
 
+    }
+    
+    public double getDijkstraSimilarity(String string1, String string2, int k, Couple c) {
+        dCostFunc.initialize(string1, string2, k);
+        double dijkstraLevenshteinDistance = getUnNormalisedDijkstraSimilarity(string1, string2, k, c);
+        //convert into zero to one return
+
+        //get the max possible levenstein distance score for string
+        float maxLen = string1.length() + string2.length();
+
+        //check for 0 maxLen
+        if (maxLen == 0) {
+            return 1.0f; //as both strings identically zero length
+        } else {
+            //return actual / possible levenstein distance to get 0-1 range
+            return Math.pow(1.0f - (dijkstraLevenshteinDistance / maxLen), 1);
+        }
+
+       
     }
 
     /**
@@ -172,7 +194,7 @@ public class Levenshtein {
      * @param t
      * @return the levenshtein distance between given strings
      */
-    public double getUnNormalisedSimilarity(String s, String t, int k) {
+    public double getUnNormalisedSimilarity(String s, String t, int k, Couple c) {
         String[] str = dCostFunc.initialize(s,t,k);
         
 //        System.out.println(str[0]+","+str[1]);
@@ -214,13 +236,41 @@ public class Levenshtein {
                 delCost = dCostFunc.getDeleteCost(i - 1, j - 1, k);
                 insCost = dCostFunc.getInsertCost(i - 1, j - 1, k);
                 // Step 6
-                d[i][j] = MathFuncs.min3(d[i - 1][j] + delCost, d[i][j - 1] + 
-                        insCost, d[i - 1][j - 1] + cost);
+                double br1 = d[i - 1][j - 1] + cost;
+                double br2 = d[i - 1][j] + delCost;
+                double br3 = d[i][j - 1] + insCost;
+                d[i][j] = MathFuncs.min3(br1, br2, br3);
+                
+                if(d[i][j] == br1)
+                    dCostFunc.count(1, i-1, j-1, k, c);
+                if(d[i][j] == br2)
+                    dCostFunc.count(2, i-1, j-1, k, c);
+                if(d[i][j] == br3)
+                    dCostFunc.count(3, i-1, j-1, k, c);
+                
             }
         }
-
+        
         // Step 7
         return d[n][m];
+    }
+
+    private double getUnNormalisedDijkstraSimilarity(String s, String t, int k, Couple c) {
+        String[] str = dCostFunc.initialize(s,t,k);
+        ArrayList<String> counts = new ArrayList<String>();
+        double sim = DijkstraSimilarity.getDijkstraSimilarity(str[0], str[1], k, dCostFunc.getCostsMatrix(), counts);
+        
+        for(String cs : counts) {
+            String[] css = cs.split(",");
+            if(css[0].equals("*")) // insertion
+                dCostFunc.count(3, -1, Integer.parseInt(css[1])-1, k, c);
+            else if(css[1].equals("*")) // deletion
+                dCostFunc.count(2, Integer.parseInt(css[0])-1, -1, k, c);
+            else // substitution
+                dCostFunc.count(1, Integer.parseInt(css[0])-1, Integer.parseInt(css[1])-1, k, c);
+        }
+        
+        return sim;
     }
     
     public String getSourceAlphabet() {
@@ -256,10 +306,17 @@ public class Levenshtein {
         return Carr;
     }
 
-    public int getMatrixCheckSum(int k) {
+    public double getMatrixCheckSum(int k) {
         return dCostFunc.getMatrixCheckSum(k);
     }
 
-    
+    public void resetCount() {
+        dCostFunc.resetCount();
+    }
+
+    public double[][][] getCostsMatrix() {
+        return dCostFunc.getCostsMatrix();
+    }
+
     
 }

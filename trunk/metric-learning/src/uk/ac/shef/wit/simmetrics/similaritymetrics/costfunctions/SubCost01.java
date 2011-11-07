@@ -40,6 +40,7 @@
 package uk.ac.shef.wit.simmetrics.similaritymetrics.costfunctions;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
+import metriclearning.Couple;
 
 /**
  * Package: cost functions
@@ -61,7 +62,7 @@ public class SubCost01  {
     private static final int MDIM = 64;
     
     private final int EMPTY_STRING = MDIM-1;
-    private String source, target;
+    private static String source, target;
     private static int N;
     
     
@@ -91,19 +92,23 @@ public class SubCost01  {
         }
     }
     
-    public String[] initialize(String source, String target, int k) {
+    public String[] initialize(String src, String tgt, int k) {
         String[] str = new String[2];
         
-        this.source = filter(source);
-        this.target = filter(target);
-        str[0] = this.source;
-        str[1] = this.target;
-        
-        for(int i=0; i<MDIM; i++)
-            for(int j=0; j<MDIM; j++)
-                count[i][j][k] = 0;
+        source = filter(src);
+        target = filter(tgt);
+        str[0] = source;
+        str[1] = target;
         
         return str;
+    }
+    
+    public void resetCount() {
+        for(int i=0; i<MDIM; i++)
+            for(int j=0; j<MDIM; j++)
+                for(int k=0; k<N; k++)
+                    count[i][j][k] = 0;
+        
     }
 
     public double[][][] getCostsMatrix() { return M; }
@@ -120,13 +125,11 @@ public class SubCost01  {
     
     
     public double getDeleteCost(int i, int i0, int k) {
-        count[charToPosition(source.charAt(i))][EMPTY_STRING][k] ++;
         return M[charToPosition(source.charAt(i))][EMPTY_STRING][k];
     }
 
     
     public double getInsertCost(int i, int i0, int k) {
-        count[EMPTY_STRING][charToPosition(target.charAt(i0))][k] ++;
         return M[EMPTY_STRING][charToPosition(target.charAt(i0))][k];
     }
 
@@ -139,7 +142,7 @@ public class SubCost01  {
             return c-55;
         else if(97 <= c && c <= 122)
             return c-61;
-        else return 63; // space
+        else return 62; // space
     }
     
     /**
@@ -153,7 +156,6 @@ public class SubCost01  {
      */
     
     public double getSubstitutionCost(int string1Index, int string2Index, int k) {
-        count[charToPosition(source.charAt(string1Index))][charToPosition(target.charAt(string2Index))][k] ++;
 //        System.out.println("between "+str1.charAt(string1Index)+" and "+str2.charAt(string2Index));
         if (source.charAt(string1Index) == target.charAt(string2Index)) {
             return 0.0;
@@ -225,12 +227,29 @@ public class SubCost01  {
         return sOut;
     }
 
-    public int getMatrixCheckSum(int k) {
-        int sum =0;
+    public double getMatrixCheckSum(int k) {
+        double sum = 0.0;
         for(int i=0; i<MDIM; i++)
             for(int j=0; j<MDIM; j++)
                 sum += M[i][j][k];
         return sum;
+    }
+
+    public void count(int br, int i, int j, int k, Couple c) {
+        switch(br) {
+            case 1: // substitution
+                count[charToPosition(source.charAt(i))][charToPosition(target.charAt(j))][k] ++;
+                c.count(charToPosition(source.charAt(i)), charToPosition(target.charAt(j)), k);
+                break;
+            case 2: // deletion
+                count[charToPosition(source.charAt(i))][EMPTY_STRING][k] ++;
+                c.count(charToPosition(source.charAt(i)), EMPTY_STRING, k);
+                break;
+            case 3: // insertion
+                count[EMPTY_STRING][charToPosition(target.charAt(j))][k] ++;
+                c.count(EMPTY_STRING, charToPosition(target.charAt(j)), k);
+                break;
+        }
     }
 
 

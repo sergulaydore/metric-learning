@@ -66,11 +66,11 @@ public class Couple {
         this.gamma = gamma;
     }
 
-    public double getSimsum() {
+    public double getSimMean() {
         double sum = 0.0;
         for(Double sim : similarities)
             sum += sim;
-        return sum;
+        return sum/similarities.size();
     }
 
     public Resource getSource() {

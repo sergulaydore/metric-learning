@@ -11,7 +11,6 @@ import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
 import org.math.array.LinearAlgebra;
-import uk.ac.shef.wit.simmetrics.similaritymetrics.Levenshtein;
 
 /**
  *

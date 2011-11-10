@@ -5,6 +5,7 @@
 package metriclearning;
 
 import au.com.bytecode.opencsv.CSVReader;
+import de.vogella.algorithms.dijkstra.model.DijkstraSimilarity;
 import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -17,7 +18,6 @@ import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
 import org.math.array.LinearAlgebra;
-import uk.ac.shef.wit.simmetrics.similaritymetrics.Levenshtein;
 
 /**
  *
@@ -37,25 +37,24 @@ public class MetricLearning {
     // the target properties
     static String[] targetProperties;
     
-    // the source KB
-//    static String sourcePath = "data/1-dblp-acm/DBLP2.csv";
-    static String sourcePath = "data/dummy/sources.csv";
-    
-    // the target KB
-//    static String targetPath = "data/1-dblp-acm/ACM.csv";
-    static String targetPath = "data/dummy/targets.csv";
-    
+    // the source/target/oracle KB
     // The oracle's knowledge is a mapping among instances of source KB
     // and target KB (oracle's answers).
-//    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
+//    static String sourcePath = "data/1-dblp-acm-mini/DBLP2.csv";
+//    static String targetPath = "data/1-dblp-acm-mini/ACM.csv";
+//    static String mappingPath = "data/1-dblp-acm-mini/DBLP-ACM_perfectMapping.csv";
+    static String sourcePath = "data/dummy/sources.csv";
+    static String targetPath = "data/dummy/targets.csv";
     static String mappingPath = "data/dummy/couples.csv";
+    
     static ArrayList<Couple> oraclesAnswers = new ArrayList<Couple>();
     
     // all elements in S×T
     static ArrayList<Couple> couples = new ArrayList<Couple>();
     
     // size of the most informative examples sets
-    static int MOST_INF_SIZE = 10;
+    static int MOSTINF_POS_CAND = 4;
+    static int MOSTINF_NEG_CAND = 4;
     static ArrayList<Couple> selected = new ArrayList<Couple>();
     static ArrayList<Couple> posSelected = new ArrayList<Couple>();
     static ArrayList<Couple> negSelected = new ArrayList<Couple>();
@@ -64,9 +63,6 @@ public class MetricLearning {
     static ArrayList<Couple> actualNeg = new ArrayList<Couple>();
     
     static ArrayList<Couple> answered = new ArrayList<Couple>();
-    
-    // The edit distance calculator
-    static Levenshtein l;
     
     // the dimensions, ergo the number of similarities applied to the properties
     static int n;
@@ -110,13 +106,14 @@ public class MetricLearning {
         loadMappings();
         initializeClassifier();
         
-        l = new Levenshtein(n);
-                
+        DijkstraSimilarity.initialize(n);
+        
         // initialize the weights normalizer
         oldmax = new double[n];
         for(int i=0; i<n; i++)
             oldmax[i] = 1.0;
         
+        int counter = 0;
         // for all sources and for all targets
         for(Resource s : sources) {
             for(Resource t : targets) {
@@ -125,7 +122,11 @@ public class MetricLearning {
                 // compute the similarity
                 c.initializeCount(n);
                 computeSimilarity(c);
-                System.out.print(c.getSimsum()+"\t");
+                System.out.print(c.getSimMean()+"\t");
+//                counter++;
+//                System.out.print(".");
+//                if(counter % 100 == 0)
+//                    System.out.println(" "+counter);
             }
         }
         w("");
@@ -165,45 +166,63 @@ public class MetricLearning {
                 answered.add(couple);
                 w("O("+couple.getSource().getID()+","+couple.getTarget().getID()+") = "+isPositive( couple ));
             }
+            if(actualPos.isEmpty() || actualNeg.isEmpty()) {
+                w("\nCan't launch SVM without positive or negative couples.");
+                w("Asking the oracle a few more questions...\n");
+            } else {
             
-            w("");
-            for(int miter = 0; f1 != 1.0 && miter<100; miter++) {
-                System.out.print(miter+".\t");
                 f1 = computeF1();
-                computeM();
-            
-                l.resetCount();
-                for(Couple c: couples)
-                    c.resetCount();
+                if(f1 != 1.0) {
 
-                // compute the new similarity according with the updated weights
-                for(Couple c : couples) {
-                    computeSimilarity(c);
-                    System.out.print(c.getSimsum()+"\t");
+                    boolean separable = false;
+                    w("");
+                    for(int miter = 0; f1 != 1.0 && miter<100 && !separable; miter++) {
+                        System.out.print(miter+".\t");
+                        computeM();
+
+                        DijkstraSimilarity.resetCount();
+                        for(Couple c: couples)
+                            c.resetCount();
+
+                        double highestNeg = 0.0;
+                        double lowestPos = 1.0;
+                        // compute the new similarity according with the updated weights
+                        for(Couple c : couples) {
+                            computeSimilarity(c);
+                            double sim = c.getSimMean();
+                            System.out.print(sim+"\t");
+                            if(actualPos.contains(c)) {
+                                if(sim < lowestPos)
+                                    lowestPos = sim;
+                            }
+                            if(actualNeg.contains(c)) {
+                                if(sim > highestNeg)
+                                    highestNeg = sim;
+                            }
+                        }
+                        w("");
+                        if(lowestPos > highestNeg)
+                            separable = true;
+                        w("low: "+lowestPos+"; high: "+highestNeg);
+                        
+                        f1 = computeF1();
+                    }
                 }
-                w("");
                 
+                // train classifier
+                updateClassifier();
+
+                System.out.print((iter+1)+"\t");
+                f1 = computeF1();
+
+                // loop break conditions
+                if(answered.size() == couples.size() || f1 == 1.0)
+                    break;
+
             }
-            
-            // train classifier
-            updateClassifier();
-            
-            System.out.print((iter+1)+"\t");
-            f1 = computeF1();
-            
-            // loop break conditions
-            if(answered.size() == couples.size() || f1 == 1.0)
-                break;
-            
-            
         }
         
-        double[][][] M = l.getCostsMatrix();
-        for(int i=0; i<M.length; i++) {
-            for(int j=0; j<M[i].length; j++)
-                System.out.print(((double)(int)(M[i][j][0]*1000))/1000+"\t");
-            w("");
-        }
+        DijkstraSimilarity.showCostsMatrix();
         
         if(createOctaveScript)
             createOctaveScript(0);
@@ -278,14 +297,6 @@ public class MetricLearning {
         }
     }
 
-    private static double editDistance(String sourceStringValue, String targetStringValue, int k, Couple c) {
-        return l.getDijkstraSimilarity(sourceStringValue, targetStringValue, k, c);
-    }
-
-    private static double mahalanobisDistance(double sourceDoubleValue, double targetDoubleValue, int k) {
-        // TODO Mahalanobis distance algorithm
-        return 0.0;
-    }
 
     /** 
      * The initial classifier C should be the hyperplane that is equidistant
@@ -462,6 +473,7 @@ public class MetricLearning {
         Set<String> propNames = source.getPropertyNames();
         couple.clearSimilarities();
         int k = 0;
+//        w("Calculating similarities...");
         for(String prop : propNames) {
             String sourceStringValue = source.getPropertyValue(prop);
             String targetStringValue = target.getPropertyValue(prop);
@@ -475,11 +487,14 @@ public class MetricLearning {
                 isNumeric = false;
             }
             if(isNumeric) {
-                couple.addSimilarity( mahalanobisDistance(sourceNumericValue, targetNumericValue, k) );
+                // TODO Mahalanobis distance algorithm
+                // mahalanobisDistance(sourceNumericValue, targetNumericValue, k)
+                couple.addSimilarity( 0.0 );
 //                    System.out.println("sim(" + prop + ") = " + d);
             } else {
-                couple.addSimilarity( editDistance(sourceStringValue, targetStringValue, k, couple) );
-//                    System.out.println("sim(" + prop + ") = " + d);
+                double d = DijkstraSimilarity.getDijkstraSimilarity(sourceStringValue, targetStringValue, k, couple);
+                couple.addSimilarity( d );
+//                System.out.println("sim(" + prop + ") = " + d);
             }
             k ++;
         }
@@ -511,39 +526,37 @@ public class MetricLearning {
      * @param c 
      */
     private static void updateSelected(Couple c) {
-        if(!answered.contains(c)) {
-            if(classify(c)) {
-                if(posSelected.size() < MOST_INF_SIZE) {
-                    posSelected.add(c);
-                    return;
+        if(classify(c)) {
+            if(posSelected.size() < MOSTINF_POS_CAND) {
+                posSelected.add(c);
+                return;
+            }
+            double min = 99999;
+            Couple c_min = null;
+            for(Couple c1 : posSelected)
+                if(c1.getGamma() < min) {
+                    min = c1.getGamma();
+                    c_min = c1;
                 }
-                double min = 99999;
-                Couple c_min = null;
-                for(Couple c1 : posSelected)
-                    if(c1.getGamma() < min) {
-                        min = c1.getGamma();
-                        c_min = c1;
-                    }
-                if(c.getGamma() > min) {
-                    posSelected.add(c);
-                    posSelected.remove(c_min);
+            if(c.getGamma() > min) {
+                posSelected.add(c);
+                posSelected.remove(c_min);
+            }
+        } else {
+            if(negSelected.size() < MOSTINF_NEG_CAND) {
+                negSelected.add(c);
+                return;
+            }
+            double min = 99999;
+            Couple c_min = null;
+            for(Couple c1 : negSelected)
+                if(c1.getGamma() < min) {
+                    min = c1.getGamma();
+                    c_min = c1;
                 }
-            } else {
-                if(negSelected.size() < MOST_INF_SIZE) {
-                    negSelected.add(c);
-                    return;
-                }
-                double min = 99999;
-                Couple c_min = null;
-                for(Couple c1 : negSelected)
-                    if(c1.getGamma() < min) {
-                        min = c1.getGamma();
-                        c_min = c1;
-                    }
-                if(c.getGamma() > min) {
-                    negSelected.add(c);
-                    negSelected.remove(c_min);
-                }
+            if(c.getGamma() > min) {
+                negSelected.add(c);
+                negSelected.remove(c_min);
             }
         }
     }
@@ -573,12 +586,12 @@ public class MetricLearning {
             }
 
         // compute f1
-        double pre = tp / (tp + fp);
-        double rec = tp / (tp + fn);
-        double f1 = 2 * pre * rec / (pre + rec);
+        double pre = tp+fp != 0 ? tp / (tp + fp) : 0;
+        double rec = tp+fn != 0 ? tp / (tp + fn) : 0;
+        double f1 = pre+rec != 0 ? 2 * pre * rec / (pre + rec) : 0;
 
-        w("mcs(0) = "+l.getMatrixCheckSum(0)+
-//                    "\tmcs(1) = "+l.getMatrixCheckSum(1)+"\tmcs(2) = "+l.getMatrixCheckSum(2)+
+        w("mcs(0) = "+DijkstraSimilarity.getMatrixCheckSum(0)+
+//                    "\tmcs(1) = "+DijkstraSimilarity.getMatrixCheckSum(1)+"\tmcs(2) = "+DijkstraSimilarity.getMatrixCheckSum(2)+
                 "\tf1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
         return f1;
     }
@@ -606,8 +619,8 @@ public class MetricLearning {
                 }
             }
             
-            weights = l.getCostsMatrixAsArray(k);
-//            counts = l.getCountMatrixAsArray(k);
+            weights = DijkstraSimilarity.getCostsMatrixAsArray(k);
+//            counts = DijkstraSimilarity.getCountMatrixAsArray(k);
             double max = 0.0;
             for(int i=0; i<weights.length; i++) {
                 // TODO change count method
@@ -628,7 +641,7 @@ public class MetricLearning {
                 int b0 = b + (a<=b ? 1 : 0);
                 if(weights[i] < 0)
                     weights[i] = 0;
-                l.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
+                DijkstraSimilarity.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
 //                w(a+","+b0+","+k+" = "+weights[i]+"/"+max+"^0.3 = "+Math.pow(weights[i]/max, 0.3333));
             }
         }

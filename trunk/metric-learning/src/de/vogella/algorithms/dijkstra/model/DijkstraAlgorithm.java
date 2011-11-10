@@ -131,30 +131,5 @@ public class DijkstraAlgorithm {
 		return path;
 	}
 
-    public double getPathLength(LinkedList<Vertex> lv, ArrayList<Edge> edges, ArrayList<String> counts) {
-        double l = 0.0;
-        for(int i=0; i<lv.size()-1; i++) {
-            Vertex v1 = lv.get(i);
-            Vertex v2 = lv.get(i+1);
-            
-            for(Edge e : edges)
-                if(e.getSource().equals(v1) && e.getDestination().equals(v2)) {
-                    l += e.getWeight();
-                    String v2id = v2.getId();
-                    switch(e.getType()) {
-                        case Edge.SUB:
-                            counts.add(v2id);
-                            break;
-                        case Edge.DEL:
-                            counts.add(v2id.split(",")[0]+",*");
-                            break;
-                        case Edge.INS:
-                            counts.add("*,"+v2id.split(",")[1]);
-                            break;
-                    }
-                }
-        }
-        return l;
-    }
 
 }

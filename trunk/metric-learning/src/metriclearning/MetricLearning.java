@@ -4,14 +4,17 @@
  */
 package metriclearning;
 
+import algorithms.edjoin.EdJoinPlus;
+import algorithms.edjoin.Entry;
 import au.com.bytecode.opencsv.CSVReader;
-import de.vogella.algorithms.dijkstra.model.DijkstraSimilarity;
 import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.Set;
+import java.util.TreeSet;
 import libsvm.svm;
 import libsvm.svm_model;
 import libsvm.svm_node;
@@ -31,30 +34,27 @@ public class MetricLearning {
     // the target cache
     static ArrayList<Resource> targets = new ArrayList<Resource>();
     
-    // the source properties
-    static String[] sourceProperties;
-    
-    // the target properties
-    static String[] targetProperties;
-    
     // the source/target/oracle KB
     // The oracle's knowledge is a mapping among instances of source KB
     // and target KB (oracle's answers).
-//    static String sourcePath = "data/1-dblp-acm-mini/DBLP2.csv";
-//    static String targetPath = "data/1-dblp-acm-mini/ACM.csv";
-//    static String mappingPath = "data/1-dblp-acm-mini/DBLP-ACM_perfectMapping.csv";
-    static String sourcePath = "data/dummy/sources.csv";
-    static String targetPath = "data/dummy/targets.csv";
-    static String mappingPath = "data/dummy/couples.csv";
+    static String sourcePath = "data/1-dblp-acm/DBLP2.csv";
+    static String targetPath = "data/1-dblp-acm/ACM.csv";
+    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
+//    static String sourcePath = "data/toy/DBLP2.csv";
+//    static String targetPath = "data/toy/ACM.csv";
+//    static String mappingPath = "data/toy/DBLP-ACM_perfectMapping.csv";
+//    static String sourcePath = "data/dummy/sources.csv";
+//    static String targetPath = "data/dummy/targets.csv";
+//    static String mappingPath = "data/dummy/couples.csv";
     
     static ArrayList<Couple> oraclesAnswers = new ArrayList<Couple>();
     
-    // all elements in S×T
-    static ArrayList<Couple> couples = new ArrayList<Couple>();
+    // all elements in S×T then filtered by ED-Join
+    static LinkedList<Couple> couples = new LinkedList<Couple>();
     
     // size of the most informative examples sets
-    static int MOSTINF_POS_CAND = 4;
-    static int MOSTINF_NEG_CAND = 4;
+    static int MOSTINF_POS_CAND = 5;
+    static int MOSTINF_NEG_CAND = 5;
     static ArrayList<Couple> selected = new ArrayList<Couple>();
     static ArrayList<Couple> posSelected = new ArrayList<Couple>();
     static ArrayList<Couple> negSelected = new ArrayList<Couple>();
@@ -96,7 +96,10 @@ public class MetricLearning {
     // output for the Matlab/Octave file
     static String outString = "";
     static boolean createOctaveScript = false;
-
+    
+    // max range of the distance (max iterations of hypercube widening)
+    static final int BETA_MAX = 100;
+    
     /**
      * @param args the command line arguments
      */
@@ -106,31 +109,106 @@ public class MetricLearning {
         loadMappings();
         initializeClassifier();
         
-        DijkstraSimilarity.initialize(n);
+        EditSimilarities.initialize(n);
         
         // initialize the weights normalizer
         oldmax = new double[n];
         for(int i=0; i<n; i++)
             oldmax[i] = 1.0;
         
-        int counter = 0;
-        // for all sources and for all targets
-        for(Resource s : sources) {
-            for(Resource t : targets) {
-                Couple c = new Couple(s, t);
-                couples.add(c);
-                // compute the similarity
-                c.initializeCount(n);
-                computeSimilarity(c);
-                System.out.print(c.getSimMean()+"\t");
-//                counter++;
-//                System.out.print(".");
-//                if(counter % 100 == 0)
-//                    System.out.println(" "+counter);
+        // add all strings to the edjoin cache
+        double theta_generic = -bias;
+        Resource first = sources.get(0);
+        int propIter = 0;
+        LinkedList<String> edJoined = new LinkedList<String>();
+        for(String p : first.getPropertyNames()) {
+            TreeSet<Entry> sTree = new TreeSet<Entry>();
+            for(Resource s : sources)
+                sTree.add(new Entry(s.getID(), s.getPropertyValue(p)));
+            TreeSet<Entry> tTree = new TreeSet<Entry>();
+            for(Resource t : targets)
+                tTree.add(new Entry(t.getID(), t.getPropertyValue(p)));
+            
+            double sumOfOthers = 0.0;
+            for(int j=0; j<n; j++)
+                if(propIter != j)
+                    sumOfOthers += C[j];
+            
+            // theta & the similarity range (that's not mandatory but useful)
+            double theta = (theta_generic - sumOfOthers) / (C[propIter]);
+//            double beta = (-1.0 + Math.sqrt(1.0 + 4.0 * Math.pow(theta, 2.0))) / 2.0;
+//            w("theta = "+theta+"\tbeta = "+beta);
+            
+            // the distance range..
+            int theta_dist = toDistance(theta);
+            int beta_dist;
+            
+            TreeSet<String> tempPairs = new TreeSet<String>();
+            LinkedList<String> testSet = new LinkedList<String>();
+
+            for(int i=1; testSet.size() < 10 && i <= BETA_MAX; i++) {
+                beta_dist = i;
+                w("\ntheta_dist = "+theta_dist+"\tbeta_dist = "+beta_dist+"\n");
+                tempPairs = EdJoinPlus.runOnEntries(
+                        theta_dist - beta_dist, theta_dist + beta_dist, sTree, tTree);
+                LinkedList<String> toRemove = new LinkedList<String>();
+                if(propIter == 0) {
+                    testSet.addAll(tempPairs);
+                } else {
+                    testSet.addAll(edJoined);
+                    for(String p1 : edJoined) {
+            // we add only the couples that respect all the distance limits...
+                        boolean found = false;
+                        for(String p2 : tempPairs)
+                            if(p1.equals(p2)) {
+                                found = true;
+                                break;
+                            }
+                        if(!found)
+                            toRemove.add(p1);
+                    }
+                    for(String p1 : toRemove)
+                        testSet.remove(p1);
+                }
+                w("\n"+propIter+". "+tempPairs.size()+" couples selected");
+                w("total of "+testSet.size()+" intersected.");
+                if(testSet.size() < 10)
+                    w("too few... widening beta by 1...");
             }
+            
+            edJoined = testSet;
+            propIter++;
+        }
+
+        w("the intersection contains "+edJoined.size()+" couples.");
+        couples.addAll(edjToCouples(edJoined));
+        
+        for(Couple c : couples) {
+            Resource r = c.getSource();
+            w(r.getID());
+            for(String p : r.getPropertyNames())
+                w("\t"+r.getPropertyValue(p));
+            r = c.getTarget();
+            w(r.getID());
+            for(String p : r.getPropertyNames())
+                w("\t"+r.getPropertyValue(p));
+            w("-----");
+        }
+        
+        int counter = 0;
+        for(Couple c : couples) {
+            // compute the similarity
+            c.initializeCount(n);
+            computeSimilarity(c);
+//                couples.add(c);
+//                System.out.print(c.getSimMean()+"\t");
+            counter++;
+            System.out.print(".");
+            if(counter % 100 == 0)
+                System.out.println(" "+counter);
         }
         w("");
-        
+                
         double f1 = 0.0;
         for(int iter=0; ; iter++) {
 //            w("\n----- ITER #"+iter+" -----");
@@ -170,59 +248,67 @@ public class MetricLearning {
                 w("\nCan't launch SVM without positive or negative couples.");
                 w("Asking the oracle a few more questions...\n");
             } else {
-            
+                
+                // try with the C^0 classifier...
                 f1 = computeF1();
+                
+                // if it fails, try with the first SVM...
+//                if(f1 != 1.0) {
+//                    updateClassifier();
+//                    f1 = computeF1();
+//                }
+                
+                // if it fails too, change the weights...
                 if(f1 != 1.0) {
 
                     boolean separable = false;
                     w("");
-                    for(int miter = 0; f1 != 1.0 && miter<100 && !separable; miter++) {
+                    for(int miter = 0; miter<200 && !separable; miter++) {
                         System.out.print(miter+".\t");
                         computeM();
 
-                        DijkstraSimilarity.resetCount();
+                        EditSimilarities.resetCount();
                         for(Couple c: couples)
                             c.resetCount();
-
-                        double highestNeg = 0.0;
-                        double lowestPos = 1.0;
+                        
                         // compute the new similarity according with the updated weights
                         for(Couple c : couples) {
                             computeSimilarity(c);
-                            double sim = c.getSimMean();
-                            System.out.print(sim+"\t");
-                            if(actualPos.contains(c)) {
-                                if(sim < lowestPos)
-                                    lowestPos = sim;
-                            }
-                            if(actualNeg.contains(c)) {
-                                if(sim > highestNeg)
-                                    highestNeg = sim;
-                            }
+//                            System.out.print(sim+"\t");
+                            System.out.print(".");
                         }
-                        w("");
-                        if(lowestPos > highestNeg)
-                            separable = true;
-                        w("low: "+lowestPos+"; high: "+highestNeg);
+                        
+                        // check if couples are linearly separable for all dimensions
+                        separable = isLinearlySeparable();
                         
                         f1 = computeF1();
+        /*
+         * PENDING
+         * 
+         * Correlation among the SVM that succeed (SVM) and the points that are
+         * separable for all properties (SEP).
+         * 
+         * Since it could be that (SVM and ~SEP), we should try the SVM every
+         * "N" iterations of the matrix learning.
+         */
                     }
-                }
                 
-                // train classifier
-                updateClassifier();
+                    // train classifier
+                    updateClassifier();
 
-                System.out.print((iter+1)+"\t");
-                f1 = computeF1();
+                    System.out.print((iter+1)+"\t");
+                    f1 = computeF1();
+                }
 
                 // loop break conditions
                 if(answered.size() == couples.size() || f1 == 1.0)
                     break;
 
             }
+            break;
         }
         
-        DijkstraSimilarity.showCostsMatrix();
+        EditSimilarities.showCostsMatrix();
         
         if(createOctaveScript)
             createOctaveScript(0);
@@ -302,13 +388,15 @@ public class MetricLearning {
      * The initial classifier C should be the hyperplane that is equidistant
      * from points (0, ..., 0) and (1, ..., 1). Analytically, it's the vector
      * [-1, ..., -1, n/2].
+     * By the way, we prefer bias = (double)n * 0.75, because we usually have 
+     * more negative than positive examples.
      */
     private static void initializeClassifier() {
         C = new double[n];
         for(int i=0; i<C.length; i++) {
             C[i] = -1.0;
         }
-        bias = (double)n / 2.0;
+        bias = (double)n * 0.75;
     }
 
     /**
@@ -492,7 +580,7 @@ public class MetricLearning {
                 couple.addSimilarity( 0.0 );
 //                    System.out.println("sim(" + prop + ") = " + d);
             } else {
-                double d = DijkstraSimilarity.getDijkstraSimilarity(sourceStringValue, targetStringValue, k, couple);
+                double d = EditSimilarities.getEditSimilarity(sourceStringValue, targetStringValue, k, couple);
                 couple.addSimilarity( d );
 //                System.out.println("sim(" + prop + ") = " + d);
             }
@@ -590,9 +678,7 @@ public class MetricLearning {
         double rec = tp+fn != 0 ? tp / (tp + fn) : 0;
         double f1 = pre+rec != 0 ? 2 * pre * rec / (pre + rec) : 0;
 
-        w("mcs(0) = "+DijkstraSimilarity.getMatrixCheckSum(0)+
-//                    "\tmcs(1) = "+DijkstraSimilarity.getMatrixCheckSum(1)+"\tmcs(2) = "+DijkstraSimilarity.getMatrixCheckSum(2)+
-                "\tf1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
+        w("f1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
         return f1;
     }
     
@@ -619,11 +705,9 @@ public class MetricLearning {
                 }
             }
             
-            weights = DijkstraSimilarity.getCostsMatrixAsArray(k);
-//            counts = DijkstraSimilarity.getCountMatrixAsArray(k);
+            weights = EditSimilarities.getCostsMatrixAsArray(k);
             double max = 0.0;
             for(int i=0; i<weights.length; i++) {
-                // TODO change count method
                 // we should count how many times a weight was used
                 // *only* when we have errors (fp and fn).
                 weights[i] = Math.pow(weights[i], 1) * oldmax[k] +
@@ -641,9 +725,65 @@ public class MetricLearning {
                 int b0 = b + (a<=b ? 1 : 0);
                 if(weights[i] < 0)
                     weights[i] = 0;
-                DijkstraSimilarity.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
+                EditSimilarities.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
 //                w(a+","+b0+","+k+" = "+weights[i]+"/"+max+"^0.3 = "+Math.pow(weights[i]/max, 0.3333));
             }
         }
+    }
+
+    private static boolean isLinearlySeparable() {
+        boolean separable = true;
+        double[] highestNeg = new double[n];
+        double[] lowestPos = new double[n];
+        for(int s=0; s<n; s++) {
+            highestNeg[s] = 0.0;
+            lowestPos[s] = 1.0;
+        }
+        for(Couple c : couples) {
+            ArrayList<Double> sims = c.getSimilarities();
+            for(int s=0; s<sims.size(); s++) {
+                Double sim = sims.get(s);
+                if(actualPos.contains(c)) {
+                    if(sim < lowestPos[s])
+                        lowestPos[s] = sim;
+                }
+                if(actualNeg.contains(c)) {
+                    if(sim > highestNeg[s])
+                        highestNeg[s] = sim;
+                }
+            }
+        }
+        w("");
+        for(int s=0; s<n; s++) {
+            w("low["+s+"]: "+lowestPos[s]+"; high["+s+"]: "+highestNeg[s]);
+            // here "<=" means "strictly separable"
+            if(lowestPos[s] <= highestNeg[s])
+                separable = false;
+        }
+        return separable;
+    }
+
+    private static LinkedList<Couple> edjToCouples(LinkedList<String> edjoined) {
+        LinkedList<Couple> cpls = new LinkedList<Couple>();
+        for(String edj : edjoined) {
+            String[] ed = edj.split("#");
+            Resource r1 = null, r2 = null;
+            for(Resource s : sources)
+                if(ed[0].equals(s.getID())) {
+                    r1 = s;
+                    break;
+                }
+            for(Resource t : targets)
+                if(ed[1].equals(t.getID())) {
+                    r2 = t;
+                    break;
+                }
+            cpls.add(new Couple(r1, r2));
+        }
+        return cpls;
+    }
+    
+    private static int toDistance(double similarity) {
+        return similarity == 0.0 ? Integer.MAX_VALUE : (int)((1.0 - similarity) / similarity);
     }
 }

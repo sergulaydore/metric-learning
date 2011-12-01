@@ -2,8 +2,13 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.vogella.algorithms.dijkstra.model;
+package metriclearning;
 
+import com.aliasi.spell.ext.WeightedEditDistanceExtended;
+import de.vogella.algorithms.dijkstra.model.DijkstraAlgorithm;
+import de.vogella.algorithms.dijkstra.model.Edge;
+import de.vogella.algorithms.dijkstra.model.Graph;
+import de.vogella.algorithms.dijkstra.model.Vertex;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;
@@ -15,7 +20,7 @@ import metriclearning.Resource;
  *
  * @author tom
  */
-public class DijkstraSimilarity {
+public class EditSimilarities {
 
     /**
      * Costs matrix, dimension: 64x64
@@ -27,6 +32,7 @@ public class DijkstraSimilarity {
     private static final int EMPTY_STRING = MDIM - 1;
     private static String source, target;
     private static int N;
+    private static int K;
 
     
     private static double getUnNormalisedDijkstraSimilarity(String s, String t, int k, Couple c) {
@@ -299,16 +305,19 @@ public class DijkstraSimilarity {
             }
         }
 
-        String a = "The WASA2 object-oriented workflow management system";
-        String b = "World Wide Database-integrating the Web, CORBA and databases";
+//        String as = "The WASA2 object-oriented workflow management system";
+//        String bs = "World Wide Database-integrating the Web, CORBA and databases";
 //        String b = "Semantic Integration of Environmental Models for Application to Global Information Systems and Decision-Making";
+        String a = "Democrat";
+        String b = "Republican";
         Couple c = new Couple(new Resource(a), new Resource(b));
         c.initializeCount(1);
         
-        double d = getDijkstraSimilarity(a, b, 0, c);
-        System.out.println("a = "+a);
-        System.out.println("b = "+b);
-        System.out.println("sim(a,b) = "+d);
+//        double d = getDijkstraSimilarity(a, b, 0, c);
+        double d = getEditSimilarity(a, b, 0, c);
+//        System.out.println("a = "+a);
+//        System.out.println("b = "+b);
+//        System.out.println("sim(a,b) = "+d);
 
     }
 
@@ -337,6 +346,79 @@ public class DijkstraSimilarity {
             }
             System.out.println("");
         }
+    }
+    
+    public static double getEditSimilarity(String s, String t, int k, Couple c) {
+        
+        K = k;
+        source = filter(s);
+        target = filter(t);
+        
+        WeightedEditDistanceExtended wed = new WeightedEditDistanceExtended() {
+            private double f(double d) {
+                return Math.log( - 0.99 * d + 1.00 ) / 20.0;
+            }
+            @Override
+            public double matchWeight(char c) {
+                return 0.0;
+            }
+            @Override
+            public double deleteWeight(char c) {
+                return f( M[ charToPosition(c) ][63][K] );
+            }
+            @Override
+            public double insertWeight(char c) {
+                return f( M[63][ charToPosition(c) ][K] );
+            }
+            @Override
+            public double substituteWeight(char c1, char c2) {
+                return f( M[ charToPosition(c1) ][ charToPosition(c2) ][K] );
+            }
+            @Override
+            public double transposeWeight(char c1, char c2) {
+                return Double.NEGATIVE_INFINITY;
+            }
+        };
+        
+        double dist = wed.distance(source, target);
+        double[][] lev = wed.getMatrix();
+        
+        int i = lev.length-1;
+        int j = lev[i].length-1;
+        while(i != 0 || j != 0) {
+            double left = j>0 ? -lev[i][j-1] : Double.POSITIVE_INFINITY;
+            double up = i>0 ? -lev[i-1][j] : Double.POSITIVE_INFINITY;
+            double upleft = (i>0 && j>0) ? -lev[i-1][j-1] : Double.POSITIVE_INFINITY;
+            
+//            char I = source.charAt(i-1);
+//            char J = target.charAt(j-1);
+            
+            if(upleft <= left && upleft <= up) {
+                // substitution
+//                System.out.println("sub("+I+","+J+")");
+                countSub(i-1, j-1, k, c);
+                i--;
+                j--;
+            } else {
+                if(left < upleft) {
+                    // insertion
+//                    System.out.println("ins("+J+")");
+                    countIns(j-1, k, c);
+                    j--;
+                } else {
+                    // deletion
+//                    System.out.println("del("+I+")");
+                    countDel(i-1, k, c);
+                    i--;
+                }
+            }
+        }
+        
+        
+        // distance-similarity conversion
+        return 1.0 / (1.0 + dist);
+        
+        
     }
 
 }

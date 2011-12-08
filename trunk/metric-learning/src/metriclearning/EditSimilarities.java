@@ -13,8 +13,6 @@ import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import metriclearning.Couple;
-import metriclearning.Resource;
 
 /**
  *
@@ -177,6 +175,8 @@ public class EditSimilarities {
                 for (int k = 0; k < N; k++) {
                     if (i == j) {
                         M[i][j][k] = 0.0;
+                    } else if((i >= 10 && i == j-26) || (j >= 10 && j == i-26)) {
+                        M[i][j][k] = 0.1;
                     } else {
                         M[i][j][k] = 1.0;
                     }
@@ -331,20 +331,45 @@ public class EditSimilarities {
         return sum;
     }
 
-    public static void showCostsMatrix() {
+    public static void showCostsMatrix(int k, boolean showMaxMinValues) {
         System.out.println("");
         for(int i=0; i<M.length-1; i++)
             System.out.print("\t"+positionToChar(i));
         System.out.println("\tε");
+        double lowest = 1.0;
         for (int i = 0; i < M.length; i++) {
-            if(i < 63)
-                System.out.print(positionToChar(i)+"\t");
-            else
-                System.out.print("ε\t");
+            printChar(i,true);
             for (int j = 0; j < M[i].length; j++) {
-                System.out.print(((double) (int) (M[i][j][0] * 1000)) / 1000 + "\t");
+                System.out.print(((double) (int) (M[i][j][k] * 1000)) / 1000 + "\t");
+                if(M[i][j][k] < lowest && M[i][j][k] > 0)
+                    lowest = M[i][j][k];
             }
             System.out.println("");
+        }
+        
+        if(showMaxMinValues) {
+            System.out.println("Highest");
+            for(int i=0; i<M.length; i++) {
+                for(int j=0; j<M[i].length; j++)
+                    if(M[i][j][k] > 0.9) {
+                        System.out.print("(");
+                        printChar(i,false);
+                        System.out.print(", ");
+                        printChar(j,false);
+                        System.out.println(") = "+M[i][j][k]);
+                    }
+            }
+            System.out.println("Lowest");
+            for(int i=0; i<M.length; i++) {
+                for(int j=0; j<M[i].length; j++)
+                    if(M[i][j][k] == lowest) {
+                        System.out.print("(");
+                        printChar(i,false);
+                        System.out.print(", ");
+                        printChar(j,false);
+                        System.out.println(") = "+M[i][j][k]);
+                    }
+            }
         }
     }
     
@@ -419,6 +444,15 @@ public class EditSimilarities {
         return 1.0 / (1.0 + dist);
         
         
+    }
+
+    private static void printChar(int i, boolean tab) {
+        String t;
+        if(tab) t = "\t"; else t = "";
+        if(i < 63)
+            System.out.print(positionToChar(i)+t);
+        else
+            System.out.print("ε"+t);
     }
 
 }

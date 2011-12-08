@@ -10,7 +10,7 @@ import java.util.ArrayList;
  *
  * @author tom
  */
-public class Couple {
+public class Couple implements Comparable {
     
     private Resource source;
     private Resource target;
@@ -109,5 +109,13 @@ public class Couple {
                     h++;
                 }
         return cArr;
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        Couple c = (Couple)o;
+        String c1 = this.getSource().getID()+"#"+this.getTarget().getID();
+        String c2 = c.getSource().getID()+"#"+c.getTarget().getID();
+        return c1.compareTo(c2);
     }
 }

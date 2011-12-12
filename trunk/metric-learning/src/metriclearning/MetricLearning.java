@@ -21,6 +21,8 @@ import libsvm.svm_model;
 import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
+import org.apache.commons.math.stat.descriptive.moment.Mean;
+import org.apache.commons.math.stat.descriptive.moment.StandardDeviation;
 import org.math.array.LinearAlgebra;
 
 /**
@@ -40,9 +42,10 @@ public class MetricLearning {
     // and target KB (oracle's answers).
     static String sourcePath = "data/1-dblp-acm/sources.csv";
     static String targetPath = "data/1-dblp-acm/targets.csv";
+    static String mappingPath = "data/1-dblp-acm/DBLP-ACM-small.csv";
 //    static String sourcePath = "data/1-dblp-acm/DBLP2.csv";
 //    static String targetPath = "data/1-dblp-acm/ACM.csv";
-    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
+//    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
 //    static String sourcePath = "data/dbpedia-sider-drug/source.csv";
 //    static String targetPath = "data/dbpedia-sider-drug/target.csv";
 //    static String mappingPath = "data/dbpedia-sider-drug/reference.csv";
@@ -75,8 +78,8 @@ public class MetricLearning {
     static double bias;
     static double signum;
     
-    // the initial bias will be n / 2 * BIAS_FACTOR
-    static final double BIAS_FACTOR = 1;
+    // the initial bias will be n / 2 * bias_factor
+    static double bias_factor;
     
     // the model
     static svm_model model;
@@ -87,8 +90,12 @@ public class MetricLearning {
     // training errors upper bound
     static double SVM_C = 1E+10;
 
-    // the learning rates
-    static double eta_plus = 9.9, eta_minus = 0.1;
+    // the Weight for Positive Examples, or 1 minus the probability
+    // to have a positive example
+    static double wpe;
+
+    // the learning rates. note that only eta_minus is fixed
+    static double eta_plus, eta_minus = 0.1;
     
     // weights (and counts) of the perceptron
     static double[] weights = new double[4032];
@@ -118,13 +125,18 @@ public class MetricLearning {
         
         loadKnowledgeBases();
         
-        w("|S| = "+sources.size()+"\t"+"|T| = "+targets.size());
+        w("|S| = "+sources.size()+"\t"+"|T| = "+targets.size()+"\t"+"n = "+n);
         if(sources.isEmpty() || targets.isEmpty())
             System.exit(0);
         
         loadMappings();
+        w("Oracle's knowledge has "+oraclesAnswers.size()+" positive examples.");
         
-        w("Oracle's Answers = "+oraclesAnswers.size());
+        wpe = 1.0 - 1.0/(double)(sources.size());
+        w("WPE = "+wpe);
+
+        bias_factor = calculateBiasFactor();
+        w("Bias Factor = "+bias_factor);
         
         initializeClassifier();
         
@@ -132,7 +144,7 @@ public class MetricLearning {
 //        System.exit(0);
         
         /* PENDING
-         * - Assigning an initial weight of 0.5 to
+         * - Assigning an initial weight of 0.1 to
          * lowercase-uppercase substitutions?
          * - Normalizing the count multiplier during
          * the weight change?
@@ -243,59 +255,61 @@ public class MetricLearning {
                 }
             }
             if(actualNeg.isEmpty()) {
-                while(actualNeg.isEmpty()) {
+                ArrayList<Couple> added = new ArrayList<Couple>();
+                while(actualNeg.size() < MOSTINF_NEG_CAND) {
                     Couple c = new Couple(sources.get((int)Math.random()*sources.size()),
                             targets.get((int)(Math.random()*targets.size())));
                     c.initializeCount(n);
                     computeSimilarity(c);
-                    if(!isPositive(c))
+                    if(!isPositive(c) && !added.contains(c)) {
                         actualNeg.add(c);
-                    couples.add(c);
+                        couples.add(c);
+                        added.add(c);
+                    }
                 }
             }
-                
-            // try with the C^0 classifier...
+            
+            if(iter == 1) {
+            // trace the first data classifier Ĉ^1
+            // note that's different from C^1 because it's calulated on M^0
+            // and forall t>1, Ĉ^t = C^t-1
+                w("\nĈ^1 classifier");
+                updateClassifier(false);
+            }
+            // calculate the f-score to update the FP and FN sets.
             f1 = computeF1();
 
-            // if it fails, try with the first SVM...
-//                if(f1 != 1.0) {
-//                    updateClassifier();
-//                    f1 = computeF1();
-//                }
+            // if it isn't separable, change the weights using perceptron learning.
+            // the concept of being separable is stronger than having f1 = 1.0.
+            // we're checking for FP & FN using a still classifier
+            // think it as we're stopping the time!
 
-            // if it fails too, change the weights...
-            if(f1 != 1.0) {
+            boolean separable = isLinearlySeparable();
+            w("");
+            for(int miter = 0; miter<MAX_PERCEPTRON_ITER && !separable; miter++) {
+                System.out.print(miter+".\t");
+                computeM();
 
-                boolean separable = false;
-                w("");
-                for(int miter = 0; miter<MAX_PERCEPTRON_ITER && !separable; miter++) {
-                    System.out.print(miter+".\t");
-                    computeM();
+                EditSimilarities.resetCount();
+                for(Couple c: couples)
+                    c.resetCount();
 
-                    EditSimilarities.resetCount();
-                    for(Couple c: couples)
-                        c.resetCount();
-
-                    // compute the new similarity according with the updated weights
-                    for(Couple c : couples) {
-                        computeSimilarity(c);
-//                            System.out.print(sim+"\t");
-                        System.out.print(".");
-                    }
-
-                    // check if couples are linearly separable for all dimensions
-                    separable = isLinearlySeparable();
-
-                    f1 = computeF1();
+                // compute the new similarity according with the updated weights
+                for(Couple c : couples) {
+                    computeSimilarity(c);
+                    System.out.print(".");
                 }
 
-                // train classifier
-                updateClassifier();
-
-                System.out.print(iter+"\t");
-                f1 = computeF1();
+                // check if couples are linearly separable for all dimensions
+                separable = isLinearlySeparable();
 
             }
+
+            // train classifier
+            updateClassifier(true);
+
+            System.out.print(iter+"\t");
+            f1 = computeF1();
 
             createOctaveScript(iter+"");
 
@@ -365,8 +379,6 @@ public class MetricLearning {
             n = r.getPropertyNames().size();
         }
         
-        w("properties = "+n);
-        
         reader = new CSVReader(new FileReader(targetPath));
         titles = reader.readNext(); // gets the column titles
         while ((nextLine = reader.readNext()) != null) {
@@ -402,14 +414,14 @@ public class MetricLearning {
         for(int i=0; i<C.length; i++) {
             C[i] = -1.0;
         }
-        bias = (double)n / 2 * BIAS_FACTOR;
+        bias = (double)n / 2 * bias_factor;
     }
 
     /**
      * Updates the classifier and builds a Matlab/Octave script to visualize
      * 2D or 3D graphs. SVM statements have been implemented for 2 classes only.
      */
-    private static void updateClassifier() {
+    private static void updateClassifier(boolean appendToOctaveScript) {
         svm_problem problem = new svm_problem();
         problem.l = actualPos.size()+actualNeg.size();
         svm_node[][] x = new svm_node[actualPos.size()+actualNeg.size()][n];
@@ -463,7 +475,7 @@ public class MetricLearning {
         w("bias = "+bias);
         
         // if needed, save the Matlab/Octave script
-        if(createOctaveScript) {
+        if(createOctaveScript && appendToOctaveScript) {
             s("hold off;",true);
             // for each dimension...
             for(int j=0; j<x[0].length; j++) {
@@ -477,21 +489,15 @@ public class MetricLearning {
                 for(int i=actualPos.size(); i<x.length; i++)
                     s(x[i][j].value+" ",false);
                 s("];",true);
-                if(n == 1)
-                    s("zr = zeros(1,"+x.length+")+0.5;",true);
-
             }
 
             if(sv.length > 0) {
 
-        //        double[][] xd = toDouble(x);
-        //        for(int i=0; i<x.length; i++)
-        //            w("#"+i+".\tprediction = "+predict(xd[i])+"\tactual = "+y[i]);
-
-                for(int i=0; i<w.length; i++)
-                    s("w"+i+" = "+w[i][0]+";",true);
-                
-                plot(false);
+                if(appendToOctaveScript) {
+                    for(int i=0; i<w.length; i++)
+                        s("w"+i+" = "+w[i][0]+";",true);
+                    plot(false);
+                }
                 
             } else {
                 // no SVs?
@@ -669,7 +675,7 @@ public class MetricLearning {
         double rec = tp+fn != 0 ? tp / (tp + fn) : 0;
         double f1 = pre+rec != 0 ? 2 * pre * rec / (pre + rec) : 0;
 
-        w("f1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
+        w("\nf1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
         return f1;
     }
     
@@ -1005,23 +1011,29 @@ public class MetricLearning {
     }
 
     private static void adjustClassifier() {
-        double[] actualPosMean = new double[n];
-        for(Couple c : actualPos) {
-            ArrayList<Double> sims = c.getSimilarities();
+        double[][] actualPosValues = new double[n][actualPos.size()];
+        for(int j=0; j<actualPos.size(); j++) {
+            ArrayList<Double> sims = actualPos.get(j).getSimilarities();
             for(int i=0; i<n; i++)
-                actualPosMean[i] += sims.get(i);
+                actualPosValues[i][j] = sims.get(i);
         }
-        double[] actualNegMean = new double[n];
-        for(Couple c : actualNeg) {
-            ArrayList<Double> sims = c.getSimilarities();
+        double[][] actualNegValues = new double[n][actualNeg.size()];
+        for(int j=0; j<actualNeg.size(); j++) {
+            ArrayList<Double> sims = actualNeg.get(j).getSimilarities();
             for(int i=0; i<n; i++)
-                actualNegMean[i] += sims.get(i);
+                actualNegValues[i][j] = sims.get(i);
         }
+        
         double[] baric = new double[n];
+        Mean mean = new Mean();
+        StandardDeviation std = new StandardDeviation();
         for(int i=0; i<n; i++) {
-            actualPosMean[i] /= actualPos.size();
-            actualNegMean[i] /= actualNeg.size();
-            baric[i] = actualPosMean[i] * 0.99 + actualNegMean[i] * 0.01;
+            double posMean = mean.evaluate(actualPosValues[i]);
+            double negMean = mean.evaluate(actualNegValues[i]);
+            double posStd = std.evaluate(actualPosValues[i]);
+            double negStd = std.evaluate(actualNegValues[i]);
+            baric[i] = (posMean - 2*posStd) * 0.5 + (negMean + 2*negStd) * 0.5;
+            w("("+posMean+" - 2*"+posStd+") * 0.5 + ("+negMean+" + 2*"+negStd+") * 0.5");
             w("baric["+i+"] = "+baric[i]);
         }
         double newBias = 0.0;
@@ -1036,13 +1048,15 @@ public class MetricLearning {
             switch(n) {
                 case 1:
                     s("hold off;",true);
-                    s("plot(x0p,zr,'xb');",true);
+                    s("zrp = zeros(1,length(x0p));",true);
+                    s("zrn = zeros(1,length(x0n));",true);
+                    s("plot(x0p,zrp,'xb');",true);
                     s("hold on;",true);
-                    s("plot(x0p,zr,'xr');",true);
+                    s("plot(x0n,zrn,'xr');",true);
                     s("xc=["+(-bias/C[0])+" "+(-bias/C[0])+"];",true);
                     s("yc=[-1 1];",true);
                     s("plot(xc,yc,'g');",true);
-                    s("axis([0 1 -0.1 0.1]);",true);
+                    s("axis([min([x0p x0n]) max([x0p x0n]) -0.1 0.1]);",true);
                     break;
                 case 2:
                     s("q = -(" + b + ")/w1;",true);
@@ -1071,5 +1085,13 @@ public class MetricLearning {
             if(saveImage)
                 s("print -dpng screen"+(int)(System.currentTimeMillis()/1000)+".png",true);
         }
+    }
+
+    private static double calculateBiasFactor() {
+        double min_q = (double)n / 2.0;
+        double max_q = 1.0 + Math.sqrt((double)n - 1.0);
+        double q_0 = min_q + wpe * (max_q - min_q);
+        w("q0 = "+q_0);
+        return 1.0 + wpe * (max_q / min_q - 1.0);
     }
 }

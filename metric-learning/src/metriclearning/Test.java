@@ -30,7 +30,33 @@ public class Test {
         System.out.println("alph(a) = "+l.getSourceAlphabet());
         System.out.println("alph(b) = "+l.getTargetAlphabet());
  */
-        updateClassifier();
+//        updateClassifier();
+//        System.out.println(testMe(-20,-28));
+//        System.out.println(Double.parseDouble("3.99"));
+//        double d = 0.3;
+//        Notifier.notify(d, d, d, d, d, d, d, 100);
+    }
+    
+    private static double testMe(double sourceNumericValue, double targetNumericValue) {
+                double srcVal, tgtVal;
+                if(Math.min(sourceNumericValue, targetNumericValue) < 0) {
+                    if(Math.max(sourceNumericValue, targetNumericValue) < 0) {
+                        srcVal = -sourceNumericValue;
+                        tgtVal = -targetNumericValue;
+                    } else {
+                        srcVal = sourceNumericValue - Math.min(sourceNumericValue, targetNumericValue);
+                        tgtVal = targetNumericValue - Math.min(sourceNumericValue, targetNumericValue);
+                    }
+                } else {
+                    srcVal = sourceNumericValue;
+                    tgtVal = targetNumericValue;
+                }
+                double d;
+                if(srcVal == 0.0 && tgtVal == 0.0)
+                    d = 1.0;
+                else
+                    d = 1 - Math.abs(srcVal - tgtVal) / Math.max(srcVal, tgtVal);
+                return d;
     }
 
     private static void updateClassifier() {

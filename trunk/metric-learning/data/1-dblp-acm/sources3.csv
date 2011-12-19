@@ -1,3 +1,4 @@
+"id","author","title","venue"
 "conf/sigmod/SlivinskasJS01","Christian S. Jensen, Richard T. Snodgrass, Giedrius Slivinskas","Adaptable Query Optimization and Evaluation in Temporal Middleware","SIGMOD Conference"
 "conf/sigmod/ChaudhuriDN01","Vivek R. Narasayya, Gautam Das, Surajit Chaudhuri","A Robust, Optimization-Based Approach for Approximate Answering of Aggregate Queries","SIGMOD Conference"
 "conf/sigmod/RinfretOO01","Elizabeth J. O'Neil, Denis Rinfret, Patrick E. O'Neil","Bit-Sliced Index Arithmetic","SIGMOD Conference"

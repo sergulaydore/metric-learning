@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Set;
 import java.util.TreeSet;
-import javax.swing.JOptionPane;
 import libsvm.svm;
 import libsvm.svm_model;
 import libsvm.svm_node;
@@ -42,16 +41,18 @@ public class MetricLearning {
     // and target KB (oracle's answers).
     static String sourcePath = "data/1-dblp-acm/sources.csv";
     static String targetPath = "data/1-dblp-acm/targets.csv";
-    static String mappingPath = "data/1-dblp-acm/DBLP-ACM-small.csv";
+//    static String mappingPath = "data/1-dblp-acm/DBLP-ACM-small.csv";
 //    static String sourcePath = "data/1-dblp-acm/DBLP2.csv";
 //    static String targetPath = "data/1-dblp-acm/ACM.csv";
-//    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
-//    static String sourcePath = "data/dbpedia-sider-drug/source.csv";
-//    static String targetPath = "data/dbpedia-sider-drug/target.csv";
-//    static String mappingPath = "data/dbpedia-sider-drug/reference.csv";
+    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
 //    static String sourcePath = "data/dbpedia-cordis-organizations/source.csv";
 //    static String targetPath = "data/dbpedia-cordis-organizations/target.csv";
 //    static String mappingPath = "data/dbpedia-cordis-organizations/reference.csv";
+//    static String sourcePath = "data/4-abt-buy/Abt.csv";
+//    static String targetPath = "data/4-abt-buy/Buy.csv";
+//    static String mappingPath = "data/4-abt-buy/abt_buy_perfectMapping.csv";
+    
+    static String[] ignoredList = {"id", "description"};
     
     static ArrayList<Couple> oraclesAnswers = new ArrayList<Couple>();
     
@@ -61,7 +62,7 @@ public class MetricLearning {
     // size of the most informative examples sets
     static int MOSTINF_POS_CAND = 5;
     static int MOSTINF_NEG_CAND = 5;
-    static ArrayList<Couple> selected = new ArrayList<Couple>();
+    
     static ArrayList<Couple> posSelected = new ArrayList<Couple>();
     static ArrayList<Couple> negSelected = new ArrayList<Couple>();
     
@@ -84,9 +85,6 @@ public class MetricLearning {
     // the model
     static svm_model model;
     
-    // the similarity lower bound [0,1] for a couple to be a candidate
-    static final double TAU = 0.5;
-
     // training errors upper bound
     static double SVM_C = 1E+10;
 
@@ -94,12 +92,11 @@ public class MetricLearning {
     // to have a positive example
     static double wpe;
 
-    // the learning rates. note that only eta_minus is fixed
-    static double eta_plus, eta_minus = 0.1;
+    // the learning rates. note that only eta_plus is fixed
+    static double eta_plus = 0.1, eta_minus;
     
     // weights (and counts) of the perceptron
     static double[] weights = new double[4032];
-    static int[] counts = new int[4032];
     static final int MAX_PERCEPTRON_ITER = 500;
     
     // sets to calculate precision and recall
@@ -111,12 +108,13 @@ public class MetricLearning {
     // output for the Matlab/Octave file
     static String outString = "";
     static boolean createOctaveScript = true;
+    static boolean sendEmail = false;
     
     // max range of the distance (max iterations of hypercube widening)
-    static final int BETA_MAX = 100;
+    static final int BETA_MIN = 1; // for test only
+    static final int BETA_MAX = 50;
     
-    static final int MIN_ITERATIONS = 1;
-    static final int MAX_ITERATIONS = 8;
+    static final int MAX_ITERATIONS = 5;
     
     /**
      * @param args the command line arguments
@@ -132,24 +130,35 @@ public class MetricLearning {
         loadMappings();
         w("Oracle's knowledge has "+oraclesAnswers.size()+" positive examples.");
         
-        wpe = 1.0 - 1.0/(double)(sources.size());
-        w("WPE = "+wpe);
-
-        bias_factor = calculateBiasFactor();
-        w("Bias Factor = "+bias_factor);
+        // the probability to have a neg is "wpe" times the one to have a pos,
+        // then the probability to have a FP is "wpe" times the one to have a FN,
+        // so we must balance the etas.
+        wpe = ((double) (Math.max(sources.size(), targets.size()))) - 1.0;
+        eta_minus = eta_plus * wpe;
         
+//        bias_factor = calculateBiasFactor();
+        bias_factor = 1.2;
+        w("Bias Factor = "+bias_factor);
         initializeClassifier();
         
 //        buildDatasets();
 //        System.exit(0);
         
-        /* PENDING
+        /* DONE
          * - Assigning an initial weight of 0.1 to
          * lowercase-uppercase substitutions?
          * - Normalizing the count multiplier during
          * the weight change?
+         * PENDING
          * - Adding a delta to encourage the
          * perceptron learning?
+         * 
+         * Obs.:
+         * - The first classifer is extremely important (bias factor = 1.2)
+         * - The "venue" dimension is less reliable because SIGMOD = International...
+         * - The perceptron isn't iterating, but f1>0.97:
+         * - It works well when we have k actual pos and k actual neg:
+         *     we could ask again until we have the first neg that is most inf.
          */
         
         EditSimilarities.initialize(n);
@@ -158,41 +167,28 @@ public class MetricLearning {
         oldmax = new double[n];
         for(int i=0; i<n; i++)
             oldmax[i] = 1.0;
-        
-        TreeSet<String> edJoined = callEdJoin(1);
-        w("the intersection contains "+edJoined.size()+" couples.");
-        couples.addAll(edjToCouples(edJoined));
-        checkDuplicates();
-        w("after the check it contains "+couples.size()+" couples.");
-        
+                
+        couples.addAll(edjToCouples(callEdJoin(1)));
 //        showCouples();
                 
-        int counter = 0;
+        // compute the similarity
         for(Couple c : couples) {
-            // compute the similarity
             c.initializeCount(n);
             computeSimilarity(c);
-//                couples.add(c);
-//                System.out.print(c.getSimMean()+"\t");
-            counter++;
-            System.out.print(".");
-            if(counter % 100 == 0)
-                System.out.println(" "+counter);
         }
-        w("");
                 
+        boolean goForTest = false;
         double f1 = 0.0;
         for(int iter = 1; true; iter ++) {
             w("\n---------- ITERATION #"+iter+" ----------");
             
             if(iter > 1) {
-                int lastCouplesSize = couples.size();
-                for(int beta_min=1; lastCouplesSize == couples.size(); beta_min++) {
-                    w("\nbeta_min = "+beta_min);
-                    couples.addAll(edjToCouples(callEdJoin(beta_min)));
-                    checkDuplicates();
-                    w("after the check it contains "+couples.size()+" couples.");
-                }
+                
+                couples.addAll(edjToCouples(callEdJoin(iter)));
+                // the hypercube could have moved or not. in both cases,
+                // we shall remove all dupes.
+                checkDuplicates();
+                
                 for(Couple c : couples) {
                     c.initializeCount(n);
                     computeSimilarity(c);
@@ -210,75 +206,19 @@ public class MetricLearning {
                     updateSelected(c);
                 }
             }
-//            w("MOST INF:"); // print the m.inf.ex.
-//            for(Couple c : posSelected)
-//                w("C("+c.getSource().getID()+","+c.getTarget().getID()+") = true");
-//            for(Couple c : negSelected)
-//                w("C("+c.getSource().getID()+","+c.getTarget().getID()+") = false");
 
-            selected.clear();
+            ArrayList<Couple> selected = new ArrayList<Couple>();
             selected.addAll(posSelected);
             selected.addAll(negSelected);
 
             // ask the oracle
-            for(int i=0; i<selected.size(); i++) {
-                Couple couple = selected.get(i);
-                if( isPositive( couple ) ) {
-                    actualPos.add( couple );
-                } else {
-                    actualNeg.add( couple );
-                }
-                answered.add(couple);
-                w("<"+couple.getSource().getID()+","+couple.getTarget().getID()+">");
-                w("O(x) = "+isPositive( couple )+"\tC(x) = "+classify(couple));
-            }
-//                w("\nCan't launch SVM without positive or negative couples.");
-//                w("Asking the oracle a few more questions...\n");
-            if(actualPos.isEmpty()) {
-                while(actualPos.isEmpty()) {
-                    // generates a fake positive example
-                    // TODO get it from the source/target files
-                    Resource s = new Resource("GeneratedPositiveSourceExample");
-                    Resource t = new Resource("GeneratedPositiveTargetExample");
-                    sources.add(s);
-                    targets.add(t);
-                    for(String p : sources.get(0).getPropertyNames()) {
-                        s.setPropertyValue(p, "GeneratedValue");
-                        t.setPropertyValue(p, "GeneratedValue");
-                    }
-                    Couple c = new Couple(s, t);
-                    c.initializeCount(n);
-                    computeSimilarity(c);
-                    couples.add(c);
-                    actualPos.add(c);
-                    oraclesAnswers.add(c);
-                }
-            }
-            if(actualNeg.isEmpty()) {
-                ArrayList<Couple> added = new ArrayList<Couple>();
-                while(actualNeg.size() < MOSTINF_NEG_CAND) {
-                    Couple c = new Couple(sources.get((int)Math.random()*sources.size()),
-                            targets.get((int)(Math.random()*targets.size())));
-                    c.initializeCount(n);
-                    computeSimilarity(c);
-                    if(!isPositive(c) && !added.contains(c)) {
-                        actualNeg.add(c);
-                        couples.add(c);
-                        added.add(c);
-                    }
-                }
-            }
+            askOracle(selected);
             
-            if(iter == 1) {
-            // trace the first data classifier Ĉ^1
-            // note that's different from C^1 because it's calulated on M^0
-            // and forall t>1, Ĉ^t = C^t-1
-                w("\nĈ^1 classifier");
-                updateClassifier(false);
-            }
+            w("\nĈ^"+iter+" classifier");
+            updateClassifier(false);
             // calculate the f-score to update the FP and FN sets.
             f1 = computeF1();
-
+            
             // if it isn't separable, change the weights using perceptron learning.
             // the concept of being separable is stronger than having f1 = 1.0.
             // we're checking for FP & FN using a still classifier
@@ -286,9 +226,11 @@ public class MetricLearning {
 
             boolean separable = isLinearlySeparable();
             w("");
-            for(int miter = 0; miter<MAX_PERCEPTRON_ITER && !separable; miter++) {
-                System.out.print(miter+".\t");
-                computeM();
+            for(int miter = 0; miter<MAX_PERCEPTRON_ITER && !separable && f1<1.0; miter++) {
+                w(miter+".");
+                for(int k=0; k<n; k++)
+                    if(!isLinearlySeparable(k))
+                        computeM(k);
 
                 EditSimilarities.resetCount();
                 for(Couple c: couples)
@@ -312,10 +254,17 @@ public class MetricLearning {
             f1 = computeF1();
 
             createOctaveScript(iter+"");
-
+                        
             // loop break conditions
-            if(answered.size() == couples.size() || (f1 == 1.0 && iter >= MIN_ITERATIONS) ||
-                    iter >= MAX_ITERATIONS)
+            if(f1 == 1.0) {
+                if(goForTest)
+                    break;
+                else
+                    goForTest = true;
+            } else {
+                goForTest = false;
+            }
+            if(iter >= MAX_ITERATIONS)
                 break;
 
         }
@@ -371,10 +320,12 @@ public class MetricLearning {
         while ((nextLine = reader.readNext()) != null) {
             Resource r = new Resource(nextLine[0]);
             for(int i=0; i<nextLine.length; i++)
-                if(!titles[i].toLowerCase().equals("id") && !titles[i].toLowerCase().equals("year")
-//                         && !titles[i].toLowerCase().equals("venue")
-                        )
-                    r.setPropertyValue(titles[i], nextLine[i]);
+                if(!isIgnored(titles[i].toLowerCase())) {
+                    if(nextLine[i] != null)
+                        r.setPropertyValue(titles[i], nextLine[i]);
+                    else
+                        r.setPropertyValue(titles[i], "");
+                }
             sources.add(r);
             n = r.getPropertyNames().size();
         }
@@ -384,12 +335,22 @@ public class MetricLearning {
         while ((nextLine = reader.readNext()) != null) {
             Resource r = new Resource(nextLine[0]);
             for(int i=0; i<nextLine.length; i++)
-                if(!titles[i].toLowerCase().equals("id") && !titles[i].toLowerCase().equals("year")
-//                         && !titles[i].toLowerCase().equals("venue")
-                        )
-                    r.setPropertyValue(titles[i], nextLine[i]);
+                if(!isIgnored(titles[i].toLowerCase())) {
+                    if(nextLine[i] != null)
+                        r.setPropertyValue(titles[i], nextLine[i]);
+                    else
+                        r.setPropertyValue(titles[i], "");
+                }
             targets.add(r);
         }
+    }
+    
+    private static boolean isIgnored(String title) {
+        for(String ign : ignoredList) {
+            if(title.equals(ign))
+                return true;
+        }
+        return false;
     }
 
     private static void loadMappings() throws IOException {
@@ -519,7 +480,7 @@ public class MetricLearning {
         return t;
     }
     
-    private static double predict(double[] values) {
+    private static double svmPredict(double[] values) {
         svm_node[] svm_nds = new svm_node[values.length];
         for(int i=0; i<values.length; i++) {
             svm_nds[i] = new svm_node();
@@ -570,11 +531,25 @@ public class MetricLearning {
             } catch(NumberFormatException e) {
 //                    System.out.println(sourceStringValue + " OR " + targetStringValue + " isn't numeric.");
                 isNumeric = false;
+            } catch(NullPointerException e) {
+                try {
+                    sourceNumericValue = Double.parseDouble(sourceStringValue);
+                } catch(NullPointerException e1) {
+                    sourceNumericValue = 0.0;
+                }
+                try {
+                    targetNumericValue = Double.parseDouble(targetStringValue);
+                } catch(NullPointerException e1) {
+                    targetNumericValue = 0.0;
+                }
             }
             if(isNumeric) {
-                // TODO Mahalanobis distance algorithm
-                // mahalanobisDistance(sourceNumericValue, targetNumericValue, k)
-                couple.addSimilarity( 0.0 );
+                // TODO organize all numerical values
+                Mahalanobis mah = new Mahalanobis(1);
+                double[] src = {sourceNumericValue};
+                double[] tgt = {targetNumericValue};
+                double d = mah.getSimilarity(src, tgt);
+                couple.addSimilarity( d );
 //                    System.out.println("sim(" + prop + ") = " + d);
             } else {
                 double d = EditSimilarities.getEditSimilarity(sourceStringValue, targetStringValue, k, couple);
@@ -679,58 +654,77 @@ public class MetricLearning {
         return f1;
     }
     
-    private static void computeM() {
+    private static void computeM(int k) {
         int[] countSumFalsePos = new int[4032];
         int[] countSumFalseNeg = new int[4032];
-        // for all properties...
-        for(int k=0; k<n; k++) {
-            // sum up error weights
-            for(int i=0; i<4032; i++) {
-                countSumFalsePos[i] = 0;
-                countSumFalseNeg[i] = 0;
+        // sum up error weights
+        for(int i=0; i<4032; i++) {
+            countSumFalsePos[i] = 0;
+            countSumFalseNeg[i] = 0;
+        }
+        for(Couple c : couples) {
+            if(c.getClassification() == Couple.FP) {
+                int[] cArr = c.getCountMatrixAsArray(k);
+                for(int i=0; i<4032; i++)
+                    countSumFalsePos[i] += cArr[i];
             }
-            for(Couple c : couples) {
-                if(c.getClassification() == Couple.FP) {
-                    int[] cArr = c.getCountMatrixAsArray(k);
-                    for(int i=0; i<4032; i++)
-                        countSumFalsePos[i] += cArr[i];
-                }
-                if(c.getClassification() == Couple.FN) {
-                    int[] cArr = c.getCountMatrixAsArray(k);
-                    for(int i=0; i<4032; i++)
-                        countSumFalseNeg[i] += cArr[i];
-                }
+            if(c.getClassification() == Couple.FN) {
+                int[] cArr = c.getCountMatrixAsArray(k);
+                for(int i=0; i<4032; i++)
+                    countSumFalseNeg[i] += cArr[i];
             }
-            
-            weights = EditSimilarities.getCostsMatrixAsArray(k);
-            double max = 0.0;
-            for(int i=0; i<weights.length; i++) {
-                // we should count how many times a weight was used
-                // *only* when we have errors (fp and fn).
+        }
+
+        weights = EditSimilarities.getCostsMatrixAsArray(k);
+        double max = 0.0;
+        for(int i=0; i<weights.length; i++) {
+            // we should count how many times a weight was used
+            // *only* when we have errors (fp and fn).
 //                double normFactor = sources.size() != 1 ? sources.size()-1 : 1;
-                weights[i] = Math.pow(weights[i], 1) * oldmax[k] +
-                        countSumFalsePos[i] * eta_plus +
-                        countSumFalseNeg[i] * eta_minus;
-                if(weights[i] > max)
-                    max = weights[i];
-            }
-            oldmax[k] = max;
-            // update and normalize each weight
-            // w' = root3(w / M)
-            for(int i=0; i<weights.length; i++) {
-                int a = i/63;
-                int b = i%63;
-                int b0 = b + (a<=b ? 1 : 0);
-                if(weights[i] < 0)
-                    weights[i] = 0;
-                EditSimilarities.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
+            weights[i] = Math.pow(weights[i], 1) * oldmax[k] +
+                    countSumFalsePos[i] * eta_plus +
+                    countSumFalseNeg[i] * eta_minus;
+            if(weights[i] > max)
+                max = weights[i];
+        }
+        oldmax[k] = max;
+        // update and normalize each weight
+        // w' = root3(w / M)
+        for(int i=0; i<weights.length; i++) {
+            int a = i/63;
+            int b = i%63;
+            int b0 = b + (a<=b ? 1 : 0);
+            if(weights[i] < 0)
+                weights[i] = 0;
+            EditSimilarities.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
 //                w(a+","+b0+","+k+" = "+weights[i]+"/"+max+"^0.3 = "+Math.pow(weights[i]/max, 0.3333));
 //                if(countSumTrue[i] > countSumFalse[i])
 //                    JOptionPane.showMessageDialog(null,"("+a+","+b0+"): "+
 //                            countSumTrue[i] +">"+ countSumFalse[i]+
 //                            ", w = "+weights[i]);
-            }
         }
+    }
+    
+    private static boolean isLinearlySeparable(int k) {
+        double highestNeg = 0.0;
+        double lowestPos = 1.0;
+        for(Couple c : couples) {
+            ArrayList<Double> sims = c.getSimilarities();
+                Double sim = sims.get(k);
+                if(actualPos.contains(c)) {
+                    if(sim < lowestPos)
+                        lowestPos = sim;
+                }
+                if(actualNeg.contains(c)) {
+                    if(sim > highestNeg)
+                        highestNeg = sim;
+                }
+        }
+        // here "<=" means "strictly separable"
+        if(lowestPos < highestNeg)
+            return false;
+        else
+            return true;
     }
 
     private static boolean isLinearlySeparable() {
@@ -789,73 +783,80 @@ public class MetricLearning {
         return similarity == 0.0 ? Integer.MAX_VALUE : (int)((1.0 - similarity) / similarity);
     }
 
-    private static TreeSet<String> callEdJoin(int beta_min) {
-        // FIXME find out why it's returning duplicates.
-        // add all strings to the edjoin cache
-        double theta_generic = -bias;
-        Resource first = sources.get(0);
-        int propIter = 0;
-        TreeSet<String> edJoined = new TreeSet<String>();
-        for(String p : first.getPropertyNames()) {
-            TreeSet<Entry> sTree = new TreeSet<Entry>();
-            for(Resource s : sources)
-                sTree.add(new Entry(s.getID(), s.getPropertyValue(p)));
-            TreeSet<Entry> tTree = new TreeSet<Entry>();
-            for(Resource t : targets)
-                tTree.add(new Entry(t.getID(), t.getPropertyValue(p)));
+    private static TreeSet<String> callEdJoin(int iter) {
+        for(int beta_dist = BETA_MIN; true; beta_dist++) {
+            w("beta_dist = "+beta_dist+"\n");
             
-            double sumOfOthers = 0.0;
-            for(int j=0; j<n; j++)
-                if(propIter != j)
-                    sumOfOthers += C[j];
+            double theta_generic = bias;
+            Resource first = sources.get(0);
+            int propIter = 0;
+            TreeSet<String> intersection = new TreeSet<String>();
             
-            // theta & the similarity range (that's not mandatory but useful)
-            double theta = (theta_generic - sumOfOthers) / (C[propIter]);
-//            double beta = (-1.0 + Math.sqrt(1.0 + 4.0 * Math.pow(theta, 2.0))) / 2.0;
-//            w("theta = "+theta+"\tbeta = "+beta);
-            
-            // the distance range..
-            int theta_dist = toDistance(theta);
-            int beta_dist;
-            
-            TreeSet<String> tempPairs = new TreeSet<String>();
-            TreeSet<String> testSet = new TreeSet<String>();
+            for(String p : first.getPropertyNames()) {
+                TreeSet<Entry> sTree = new TreeSet<Entry>();
+                for(Resource s : sources)
+                    sTree.add(new Entry(s.getID(), s.getPropertyValue(p)));
+                TreeSet<Entry> tTree = new TreeSet<Entry>();
+                for(Resource t : targets)
+                    tTree.add(new Entry(t.getID(), t.getPropertyValue(p)));
 
-            for(int i=beta_min; testSet.size() < (MOSTINF_NEG_CAND+MOSTINF_POS_CAND)*2 && i <= BETA_MAX; i++) {
-                beta_dist = i;
-                w("theta_dist = "+theta_dist+"\tbeta_dist = "+beta_dist+"\n");
-                tempPairs = EdJoinPlus.runOnEntries(
-                        theta_dist - beta_dist, theta_dist + beta_dist, sTree, tTree);
-                TreeSet<String> toRemove = new TreeSet<String>();
+                // theta & the similarity range (that's not mandatory but useful)
+                double sumOfOthers = 0.0;
+                for(int j=0; j<n; j++)
+                    if(propIter != j)
+                        sumOfOthers += C[j];
+                double theta =
+                        C[propIter] == 0.0 ?
+                        (theta_generic - sumOfOthers) / (C[propIter]) : 0.5;
+                // the distance range..
+                int theta_dist = toDistance(theta);
+                
+//                // TODO possibility to flag a property with "numeric"
+//                if(p.equals("price"))
+//                    // TODO do the MahalaJoin thing
+//                    section = MahalaJoin.run();
+//                else
+                int min = (theta_dist-beta_dist)>0 ? (theta_dist-beta_dist) : 0;
+                int max = theta_dist+beta_dist;
+                
+                // FIXME strange behavior with property no.2 (description) of abt-buy
+                TreeSet<String> section = EdJoinPlus.runOnEntries(
+                        min, max, sTree, tTree);
+                
+                w("\n#"+propIter+" section = "+section.size()+"\n");
+            
                 if(propIter == 0) {
-                    testSet.addAll(tempPairs);
+                    intersection.addAll(section);
                 } else {
-                    testSet.addAll(edJoined);
-                    for(String p1 : edJoined) {
-            // we add only the couples that respect all the distance limits...
-                        boolean found = false;
-                        for(String p2 : tempPairs)
-                            if(p1.equals(p2)) {
-                                found = true;
-                                break;
-                            }
-                        if(!found)
-                            toRemove.add(p1);
-                    }
-                    for(String p1 : toRemove)
-                        testSet.remove(p1);
+                    TreeSet<String> toRemove = new TreeSet<String>();
+                    for(String s : intersection)
+                        if(!section.contains(s))
+                            toRemove.add(s);
+                    for(String s : toRemove)
+                        intersection.remove(s);
                 }
-                w("\nproperty no."+propIter+" -> "+tempPairs.size()+" couples selected, "
-                        +"total of "+testSet.size()+" intersected.");
-                if(testSet.size() < 10)
-                    w("too few... widening beta by 1...");
+                propIter++;
             }
             
-            edJoined = testSet;
-            propIter++;
+            w("intersection = "+intersection.size()+"\n");
+            
+            int maybePos = 0, maybeNeg = 0;
+            for(String s : intersection) {
+                Couple c = buildCouple(s);
+                if(classify(c))
+                    maybePos++;
+                else
+                    maybeNeg++;
+            }
+            
+            w("maybe: pos = "+maybePos+", neg = "+maybeNeg+"\n");
+            
+            if((maybePos >= MOSTINF_POS_CAND*iter && maybeNeg >= MOSTINF_NEG_CAND*iter)
+                    || beta_dist == BETA_MAX)
+                return intersection;
         }
-        return edJoined;
     }
+
 
     private static void checkDuplicates() {
         ArrayList<Couple> toRemove = new ArrayList<Couple>();
@@ -917,6 +918,7 @@ public class MetricLearning {
                 negString[i] = "";
             }
         
+        int size = sources.size()*targets.size();
         for(Resource s : sources) {
             for(Resource t : targets) {
                 Couple c = new Couple(s, t);
@@ -946,7 +948,10 @@ public class MetricLearning {
                 counter++;
                 System.out.print(".");
                 if(counter % 100 == 0)
-                    System.out.println(" "+counter);
+                    w(" "+counter);
+//                if(counter == size * 0.25) showPartial(25);
+//                if(counter == size * 0.50) showPartial(50);
+//                if(counter == size * 0.75) showPartial(75);
             }
         }
         
@@ -969,14 +974,16 @@ public class MetricLearning {
                 + "f1 = "+f1+"\n"
                 + "pre = "+pre+"\n"
                 + "rec = "+rec+"\n"
-                +"tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn);
+                + "tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn);
                 
+        if(sendEmail)
+            Notifier.notify(f1, pre, rec, tp, fp, tn, fn, 100);
     }
 
     private static void buildDatasets() {
         String src = "", tgt = "";
         for(int i=0; i<100 && i<oraclesAnswers.size(); i++) {
-            Couple c = oraclesAnswers.get(i);
+            Couple c = oraclesAnswers.get((oraclesAnswers.size()/100)*i);
             for(Resource s : sources) {
                 if(c.getSource().getID().equals(s.getID())) {
                     src += "\""+s.getID()+"\"";
@@ -1087,6 +1094,10 @@ public class MetricLearning {
         }
     }
 
+    /**
+     * It's a good method, but it works only when we have enough positive examples
+     * with *all* similarities next to 1.0
+     */ 
     private static double calculateBiasFactor() {
         double min_q = (double)n / 2.0;
         double max_q = 1.0 + Math.sqrt((double)n - 1.0);
@@ -1094,4 +1105,88 @@ public class MetricLearning {
         w("q0 = "+q_0);
         return 1.0 + wpe * (max_q / min_q - 1.0);
     }
+
+    private static Couple buildCouple(String str) {
+        String[] ids = str.split("#");
+        Resource r1 = null, r2 = null;
+        for(Resource s : sources)
+            if(ids[0].equals(s.getID())) {
+                r1 = s;
+                break;
+            }
+        for(Resource t : targets)
+            if(ids[1].equals(t.getID())) {
+                r2 = t;
+                break;
+            }
+        Couple c = new Couple(r1, r2);
+        c.initializeCount(n);
+        computeSimilarity(c);
+        return c;
+    }
+
+    private static void showPartial(int part) {
+        double pre = tp+fp != 0 ? tp / (tp + fp) : 0;
+        double rec = tp+fn != 0 ? tp / (tp + fn) : 0;
+        double f1 = pre+rec != 0 ? 2 * pre * rec / (pre + rec) : 0;
+        w("\n"+part+"% Results\n"
+                + "f1 = "+f1+"\n"
+                + "pre = "+pre+"\n"
+                + "rec = "+rec+"\n"
+                + "tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn);
+        if(sendEmail)
+            Notifier.notify(f1, pre, rec, tp, fp, tn, fn, part);
+    }
+
+    private static void askOracle(ArrayList<Couple> selected) {
+        for(int i=0; i<selected.size(); i++) {
+            Couple couple = selected.get(i);
+            if( isPositive( couple ) ) {
+                actualPos.add( couple );
+            } else {
+                actualNeg.add( couple );
+            }
+            answered.add(couple);
+            w("<"+couple.getSource().getID()+","+couple.getTarget().getID()+">");
+            w("O(x) = "+isPositive( couple )+"\tC(x) = "+classify(couple));
+        }
+//                w("\nCan't launch SVM without positive or negative couples.");
+//                w("Asking the oracle a few more questions...\n");
+        if(actualPos.isEmpty()) {
+            while(actualPos.isEmpty()) {
+                // generates a fake positive example
+                // TODO ask for some c=(s,t) with sim(c) > 0.8 or so
+                Resource s = new Resource("GeneratedPositiveSourceExample");
+                Resource t = new Resource("GeneratedPositiveTargetExample");
+                sources.add(s);
+                targets.add(t);
+                for(String p : sources.get(0).getPropertyNames()) {
+                    s.setPropertyValue(p, "GeneratedValue");
+                    t.setPropertyValue(p, "GeneratedValue");
+                }
+                Couple c = new Couple(s, t);
+                c.initializeCount(n);
+                computeSimilarity(c);
+                couples.add(c);
+                actualPos.add(c);
+                oraclesAnswers.add(c);
+            }
+        }
+        if(actualNeg.isEmpty()) {
+            ArrayList<Couple> added = new ArrayList<Couple>();
+            while(actualNeg.size() < MOSTINF_NEG_CAND) {
+                Couple c = new Couple(sources.get((int)Math.random()*sources.size()),
+                        targets.get((int)(Math.random()*targets.size())));
+                c.initializeCount(n);
+                computeSimilarity(c);
+                if(!isPositive(c) && !added.contains(c)) {
+                    actualNeg.add(c);
+                    couples.add(c);
+                    added.add(c);
+                }
+            }
+        }
+    }
+
+    
 }

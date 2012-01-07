@@ -39,18 +39,10 @@ public class MetricLearning {
     // the source/target/oracle KB
     // The oracle's knowledge is a mapping among instances of source KB
     // and target KB (oracle's answers).
-    static String sourcePath = "data/1-dblp-acm/sources.csv";
-    static String targetPath = "data/1-dblp-acm/targets.csv";
-//    static String mappingPath = "data/1-dblp-acm/DBLP-ACM-small.csv";
-//    static String sourcePath = "data/1-dblp-acm/DBLP2.csv";
-//    static String targetPath = "data/1-dblp-acm/ACM.csv";
-    static String mappingPath = "data/1-dblp-acm/DBLP-ACM_perfectMapping.csv";
-//    static String sourcePath = "data/dbpedia-cordis-organizations/source.csv";
-//    static String targetPath = "data/dbpedia-cordis-organizations/target.csv";
-//    static String mappingPath = "data/dbpedia-cordis-organizations/reference.csv";
-//    static String sourcePath = "data/4-abt-buy/Abt.csv";
-//    static String targetPath = "data/4-abt-buy/Buy.csv";
-//    static String mappingPath = "data/4-abt-buy/abt_buy_perfectMapping.csv";
+    static String basePath = "data/1-dblp-acm/";
+    static String sourcePath;
+    static String targetPath;
+    static String mappingPath;
     
     static String[] ignoredList = {"id", "description"};
     
@@ -59,7 +51,7 @@ public class MetricLearning {
     // all elements in S×T then filtered by ED-Join
     static LinkedList<Couple> couples = new LinkedList<Couple>();
     
-    // size of the most informative examples sets
+    // k = the size of the most informative examples sets
     static int MOSTINF_POS_CAND = 5;
     static int MOSTINF_NEG_CAND = 5;
     
@@ -80,7 +72,7 @@ public class MetricLearning {
     static double signum;
     
     // the initial bias will be n / 2 * bias_factor
-    static double bias_factor;
+    static double bias_factor = 1.2;
     
     // the model
     static svm_model model;
@@ -96,6 +88,7 @@ public class MetricLearning {
     static double eta_plus = 0.1, eta_minus;
     
     // weights (and counts) of the perceptron
+    static boolean usePerceptronLearning = true;
     static double[] weights = new double[4032];
     static final int MAX_PERCEPTRON_ITER = 500;
     
@@ -108,19 +101,32 @@ public class MetricLearning {
     // output for the Matlab/Octave file
     static String outString = "";
     static boolean createOctaveScript = true;
-    static boolean sendEmail = false;
+    static boolean sendEmail = true;
     
     // max range of the distance (max iterations of hypercube widening)
-    static final int BETA_MIN = 1; // for test only
     static final int BETA_MAX = 50;
     
     static final int MAX_ITERATIONS = 5;
     
     /**
-     * @param args the command line arguments
+     * @param args basePath, k, biasFactor, octaveScript, sendEmail
      */
     public static void main(String[] args) throws IOException {
         
+        if(args.length >= 1) basePath = "data/" + args[0] + "/";
+        if(args.length >= 2) {
+            MOSTINF_POS_CAND = Integer.parseInt(args[1]);
+            MOSTINF_NEG_CAND = Integer.parseInt(args[1]);
+        }
+        if(args.length >= 3) bias_factor = Double.parseDouble(args[2]);
+        if(args.length >= 4) createOctaveScript = Boolean.parseBoolean(args[3]);
+        if(args.length >= 5) sendEmail = Boolean.parseBoolean(args[4]);
+               
+        
+        sourcePath = basePath + "sources.csv";
+        targetPath = basePath + "targets.csv";
+        mappingPath = basePath + "mapping.csv";
+    
         loadKnowledgeBases();
         
         w("|S| = "+sources.size()+"\t"+"|T| = "+targets.size()+"\t"+"n = "+n);
@@ -134,10 +140,9 @@ public class MetricLearning {
         // then the probability to have a FP is "wpe" times the one to have a FN,
         // so we must balance the etas.
         wpe = ((double) (Math.max(sources.size(), targets.size()))) - 1.0;
-        eta_minus = eta_plus * wpe;
+        eta_minus = - eta_plus * wpe;
         
 //        bias_factor = calculateBiasFactor();
-        bias_factor = 1.2;
         w("Bias Factor = "+bias_factor);
         initializeClassifier();
         
@@ -145,14 +150,6 @@ public class MetricLearning {
 //        System.exit(0);
         
         /* DONE
-         * - Assigning an initial weight of 0.1 to
-         * lowercase-uppercase substitutions?
-         * - Normalizing the count multiplier during
-         * the weight change?
-         * PENDING
-         * - Adding a delta to encourage the
-         * perceptron learning?
-         * 
          * Obs.:
          * - The first classifer is extremely important (bias factor = 1.2)
          * - The "venue" dimension is less reliable because SIGMOD = International...
@@ -219,6 +216,7 @@ public class MetricLearning {
             // calculate the f-score to update the FP and FN sets.
             f1 = computeF1();
             
+            
             // if it isn't separable, change the weights using perceptron learning.
             // the concept of being separable is stronger than having f1 = 1.0.
             // we're checking for FP & FN using a still classifier
@@ -226,7 +224,8 @@ public class MetricLearning {
 
             boolean separable = isLinearlySeparable();
             w("");
-            for(int miter = 0; miter<MAX_PERCEPTRON_ITER && !separable && f1<1.0; miter++) {
+            for(int miter = 0; miter<MAX_PERCEPTRON_ITER && !separable && f1<1.0
+                    && usePerceptronLearning; miter++) {
                 w(miter+".");
                 for(int k=0; k<n; k++)
                     if(!isLinearlySeparable(k))
@@ -711,20 +710,27 @@ public class MetricLearning {
         for(Couple c : couples) {
             ArrayList<Double> sims = c.getSimilarities();
                 Double sim = sims.get(k);
-                if(actualPos.contains(c)) {
+                if(isInSet(c, actualPos)) {
                     if(sim < lowestPos)
                         lowestPos = sim;
                 }
-                if(actualNeg.contains(c)) {
+                 if(isInSet(c, actualNeg)) {
                     if(sim > highestNeg)
                         highestNeg = sim;
                 }
         }
         // here "<=" means "strictly separable"
-        if(lowestPos < highestNeg)
-            return false;
-        else
-            return true;
+        if(n == 1) {
+            if(lowestPos <= highestNeg)
+                return false;
+            else
+                return true;
+        } else {
+            if(lowestPos < highestNeg)
+                return false;
+            else
+                return true;
+        }
     }
 
     private static boolean isLinearlySeparable() {
@@ -739,11 +745,11 @@ public class MetricLearning {
             ArrayList<Double> sims = c.getSimilarities();
             for(int s=0; s<sims.size(); s++) {
                 Double sim = sims.get(s);
-                if(actualPos.contains(c)) {
+                if(isInSet(c, actualPos)) {
                     if(sim < lowestPos[s])
                         lowestPos[s] = sim;
                 }
-                if(actualNeg.contains(c)) {
+                if(isInSet(c, actualNeg)) {
                     if(sim > highestNeg[s])
                         highestNeg[s] = sim;
                 }
@@ -753,8 +759,13 @@ public class MetricLearning {
         for(int s=0; s<n; s++) {
             w("low["+s+"]: "+lowestPos[s]+"; high["+s+"]: "+highestNeg[s]);
             // here "<=" means "strictly separable"
-            if(lowestPos[s] < highestNeg[s])
-                separable = false;
+            if(n == 1) {
+                if(lowestPos[s] <= highestNeg[s])
+                    separable = false;
+            } else {
+                if(lowestPos[s] < highestNeg[s])
+                    separable = false;
+            }
         }
         return separable;
     }
@@ -784,7 +795,7 @@ public class MetricLearning {
     }
 
     private static TreeSet<String> callEdJoin(int iter) {
-        for(int beta_dist = BETA_MIN; true; beta_dist++) {
+        for(int beta_dist = 1; true; beta_dist++) {
             w("beta_dist = "+beta_dist+"\n");
             
             double theta_generic = bias;
@@ -949,9 +960,9 @@ public class MetricLearning {
                 System.out.print(".");
                 if(counter % 100 == 0)
                     w(" "+counter);
-//                if(counter == size * 0.25) showPartial(25);
-//                if(counter == size * 0.50) showPartial(50);
-//                if(counter == size * 0.75) showPartial(75);
+                if(counter == size * 0.25) showPartial(25);
+                if(counter == size * 0.50) showPartial(50);
+                if(counter == size * 0.75) showPartial(75);
             }
         }
         
@@ -1093,7 +1104,15 @@ public class MetricLearning {
                 s("print -dpng screen"+(int)(System.currentTimeMillis()/1000)+".png",true);
         }
     }
-
+    
+    private static boolean isInSet(Couple c, ArrayList<Couple> set) {
+        for(Couple p : set)
+            if(p.getSource().getID().equals(c.getSource().getID()) &&
+                    p.getTarget().getID().equals(c.getTarget().getID()))
+                    return true;
+        return false;
+    }
+    
     /**
      * It's a good method, but it works only when we have enough positive examples
      * with *all* similarities next to 1.0
@@ -1170,6 +1189,7 @@ public class MetricLearning {
                 couples.add(c);
                 actualPos.add(c);
                 oraclesAnswers.add(c);
+                answered.add(c);
             }
         }
         if(actualNeg.isEmpty()) {
@@ -1183,6 +1203,8 @@ public class MetricLearning {
                     actualNeg.add(c);
                     couples.add(c);
                     added.add(c);
+                    oraclesAnswers.add(c);
+                    answered.add(c);
                 }
             }
         }

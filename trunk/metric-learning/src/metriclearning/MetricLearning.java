@@ -39,12 +39,12 @@ public class MetricLearning {
     // the source/target/oracle KB
     // The oracle's knowledge is a mapping among instances of source KB
     // and target KB (oracle's answers).
-    static String basePath = "data/1-dblp-acm/";
+    static String basePath = "data/paper/";
     static String sourcePath;
     static String targetPath;
     static String mappingPath;
     
-    static String[] ignoredList = {"id", "description"};
+    static String[] ignoredList = {"id", "ID"};
     
     static ArrayList<Couple> oraclesAnswers = new ArrayList<Couple>();
     
@@ -52,8 +52,8 @@ public class MetricLearning {
     static LinkedList<Couple> couples = new LinkedList<Couple>();
     
     // k = the size of the most informative examples sets
-    static int MOSTINF_POS_CAND = 5;
-    static int MOSTINF_NEG_CAND = 5;
+    static int MOSTINF_POS_CAND = 7;
+    static int MOSTINF_NEG_CAND = 7;
     
     static ArrayList<Couple> posSelected = new ArrayList<Couple>();
     static ArrayList<Couple> negSelected = new ArrayList<Couple>();
@@ -72,20 +72,21 @@ public class MetricLearning {
     static double signum;
     
     // the initial bias will be n / 2 * bias_factor
-    static double bias_factor = 1.2;
+    static double bias_factor = 1.0;
     
     // the model
     static svm_model model;
     
-    // training errors upper bound
+    // svm constant
     static double SVM_C = 1E+10;
 
     // the Weight for Positive Examples, or 1 minus the probability
     // to have a positive example
     static double wpe;
 
-    // the learning rates. note that only eta_plus is fixed
-    static double eta_plus = 0.1, eta_minus;
+    // the learning rates
+    static double eta_plus = 0.1;
+    static double eta_minus = -eta_plus;
     
     // weights (and counts) of the perceptron
     static boolean usePerceptronLearning = true;
@@ -101,7 +102,7 @@ public class MetricLearning {
     // output for the Matlab/Octave file
     static String outString = "";
     static boolean createOctaveScript = true;
-    static boolean sendEmail = true;
+    static boolean sendEmail = false;
     
     // max range of the distance (max iterations of hypercube widening)
     static final int BETA_MAX = 50;
@@ -113,16 +114,16 @@ public class MetricLearning {
      */
     public static void main(String[] args) throws IOException {
         
-        if(args.length >= 1) basePath = "data/" + args[0] + "/";
-        if(args.length >= 2) {
-            MOSTINF_POS_CAND = Integer.parseInt(args[1]);
-            MOSTINF_NEG_CAND = Integer.parseInt(args[1]);
-        }
-        if(args.length >= 3) bias_factor = Double.parseDouble(args[2]);
-        if(args.length >= 4) createOctaveScript = Boolean.parseBoolean(args[3]);
-        if(args.length >= 5) sendEmail = Boolean.parseBoolean(args[4]);
-               
-        
+//        if(args.length >= 1) basePath = "data/" + args[0] + "/";
+//        if(args.length >= 2) {
+//            MOSTINF_POS_CAND = Integer.parseInt(args[1]);
+//            MOSTINF_NEG_CAND = Integer.parseInt(args[1]);
+//        }
+//        if(args.length >= 3) bias_factor = Double.parseDouble(args[2]);
+//        if(args.length >= 4) createOctaveScript = Boolean.parseBoolean(args[3]);
+//        if(args.length >= 5) sendEmail = Boolean.parseBoolean(args[4]);
+//               
+//        
         sourcePath = basePath + "sources.csv";
         targetPath = basePath + "targets.csv";
         mappingPath = basePath + "mapping.csv";
@@ -165,8 +166,11 @@ public class MetricLearning {
         for(int i=0; i<n; i++)
             oldmax[i] = 1.0;
                 
-        couples.addAll(edjToCouples(callEdJoin(1)));
+//        couples.addAll(edjToCouples(callEdJoin(1)));
 //        showCouples();
+        for(Resource s : sources)
+        	for(Resource t : targets)
+        		couples.add(new Couple(s,t));
                 
         // compute the similarity
         for(Couple c : couples) {
@@ -181,7 +185,7 @@ public class MetricLearning {
             
             if(iter > 1) {
                 
-                couples.addAll(edjToCouples(callEdJoin(iter)));
+//                couples.addAll(edjToCouples(callEdJoin(iter)));
                 // the hypercube could have moved or not. in both cases,
                 // we shall remove all dupes.
                 checkDuplicates();
@@ -271,7 +275,7 @@ public class MetricLearning {
         for(int i=0; i<n; i++)
             EditSimilarities.showCostsMatrix(i, false);
 
-        adjustClassifier();
+//        adjustClassifier();
         
         plot(true);
         createOctaveScript("final");
@@ -943,8 +947,9 @@ public class MetricLearning {
                         fn++;
                     }
                     if(createOctaveScript)
-                        for(int j=0; j<n; j++)
+                        for(int j=0; j<n; j++) {
                             posString[j] += c.getSimilarities().get(j)+" ";
+                        }
                 } else {
                     if(classify(c)) {
 //                        w("neg:\t"+c.getSimMean()+"\t"+s.getPropertyValue("title") +"#"+t.getPropertyValue("title"));
@@ -992,9 +997,18 @@ public class MetricLearning {
     }
 
     private static void buildDatasets() {
-        String src = "", tgt = "";
-        for(int i=0; i<100 && i<oraclesAnswers.size(); i++) {
-            Couple c = oraclesAnswers.get((oraclesAnswers.size()/100)*i);
+        String src = "\"id\",", tgt = "\"id\",", map = "\"id1\",\"id2\"\n";
+        
+        for(String p : sources.get(0).getPropertyNames()) {
+            src += "\""+p+"\",";
+            tgt += "\""+p+"\",";
+        }
+        src = src.substring(0, src.length()-1)+"\n";
+        tgt = tgt.substring(0, tgt.length()-1)+"\n";
+                    
+        final int NUM = 100;
+        for(int i=0; i<NUM && i<oraclesAnswers.size(); i++) {
+            Couple c = oraclesAnswers.get((oraclesAnswers.size()/NUM)*i);
             for(Resource s : sources) {
                 if(c.getSource().getID().equals(s.getID())) {
                     src += "\""+s.getID()+"\"";
@@ -1013,6 +1027,7 @@ public class MetricLearning {
                     break;
                 }
             }
+            map += "\""+c.getSource().getID()+"\",\""+c.getTarget().getID()+"\"\n";
         }
         try {
             FileWriter fstream = new FileWriter("sources.csv");
@@ -1024,6 +1039,12 @@ public class MetricLearning {
             FileWriter fstream = new FileWriter("targets.csv");
             BufferedWriter out = new BufferedWriter(fstream);
             out.write(tgt);
+            out.close();
+        } catch (Exception e){ w("Error: " + e.getMessage()); }
+        try {
+            FileWriter fstream = new FileWriter("mapping.csv");
+            BufferedWriter out = new BufferedWriter(fstream);
+            out.write(map);
             out.close();
         } catch (Exception e){ w("Error: " + e.getMessage()); }
     }
@@ -1048,9 +1069,11 @@ public class MetricLearning {
         for(int i=0; i<n; i++) {
             double posMean = mean.evaluate(actualPosValues[i]);
             double negMean = mean.evaluate(actualNegValues[i]);
-            double posStd = std.evaluate(actualPosValues[i]);
-            double negStd = std.evaluate(actualNegValues[i]);
-            baric[i] = (posMean - 2*posStd) * 0.5 + (negMean + 2*negStd) * 0.5;
+            double posStd = 0;// std.evaluate(actualPosValues[i]);
+            double negStd = 0;// std.evaluate(actualNegValues[i]);
+            double x1 = (posMean - 2*posStd);
+            double x2 = (negMean + 2*negStd);
+            baric[i] = x1 * 0.5 + x2 * 0.5;
             w("("+posMean+" - 2*"+posStd+") * 0.5 + ("+negMean+" + 2*"+negStd+") * 0.5");
             w("baric["+i+"] = "+baric[i]);
         }
@@ -1203,7 +1226,6 @@ public class MetricLearning {
                     actualNeg.add(c);
                     couples.add(c);
                     added.add(c);
-                    oraclesAnswers.add(c);
                     answered.add(c);
                 }
             }

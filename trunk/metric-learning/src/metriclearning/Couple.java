@@ -10,7 +10,7 @@ import java.util.ArrayList;
  *
  * @author tom
  */
-public class Couple implements Comparable {
+public class Couple implements Comparable<Couple> {
     
     private Resource source;
     private Resource target;
@@ -21,10 +21,6 @@ public class Couple implements Comparable {
     
     private int[][][] count;
 
-    public int[][][] getCount() {
-        return count;
-    }
-    
     public static final int TP = 1;
     public static final int FP = 2;
     public static final int TN = 3;
@@ -112,10 +108,11 @@ public class Couple implements Comparable {
     }
 
     @Override
-    public int compareTo(Object o) {
-        Couple c = (Couple)o;
+    public int compareTo(Couple c) {
+    	// maybe we should replace '#' with another symbol...
         String c1 = this.getSource().getID()+"#"+this.getTarget().getID();
         String c2 = c.getSource().getID()+"#"+c.getTarget().getID();
         return c1.compareTo(c2);
     }
+
 }

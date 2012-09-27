@@ -19,7 +19,8 @@ public class Couple implements Comparable<Couple> {
     
     private double gamma;
     
-    private int[][][] count;
+//    private int[][][] count;
+    private ArrayList<Operation> ops;
 
     public static final int TP = 1;
     public static final int FP = 2;
@@ -35,23 +36,17 @@ public class Couple implements Comparable<Couple> {
         this.classification = classification;
     }
     
-    public void initializeCount(int n) {
-        count = new int[64][64][n];
-        for(int i=0; i<64; i++)
-            for(int j=0; j<64; j++)
-                for(int k=0; k<n; k++)
-                    count[i][j][k] = 0;
-    }
-    
     public void resetCount() {
-        for(int i=0; i<count.length; i++)
-            for(int j=0; j<count[i].length; j++)
-                for(int k=0; k<count[i][j].length; k++)
-                    count[i][j][k] = 0;
+//        for(int i=0; i<count.length; i++)
+//            for(int j=0; j<count[i].length; j++)
+//                for(int k=0; k<count[i][j].length; k++)
+//                    count[i][j][k] = 0;
+    	ops.clear();
     }
     
     public void count(int i, int j, int k) {
-        count[i][j][k] ++;
+//        count[i][j][k] ++;
+    	ops.add(new Operation(i, j, k));
     }
     
     public double getGamma() {
@@ -85,10 +80,15 @@ public class Couple implements Comparable<Couple> {
         similarities.add(d);
     }
 
+    public void addDistance(double d) {
+        similarities.add(1.0 / (1.0 + d));
+    }
+
     public Couple(Resource source, Resource target) {
         this.source = source;
         this.target = target;
         similarities = new ArrayList<Double>();
+        ops = new ArrayList<Operation>();
     }
 
     public void clearSimilarities() {
@@ -96,14 +96,22 @@ public class Couple implements Comparable<Couple> {
     }
     
     public int[] getCountMatrixAsArray(int k) {
-        int[] cArr = new int[4032];
-        int h = 0;
-        for(int i=0; i<count.length; i++)
-            for(int j=0; j<count[i].length; j++)
-                if(i != j) {
-                    cArr[h] = count[i][j][k];
-                    h++;
-                }
+        int[] cArr = new int[4096];
+        for(Operation op : ops) {
+        	int n = op.getN();
+        	if(k == n) {
+	        	int arg1 = op.getArg1();
+	        	int arg2 = op.getArg2();
+	        	cArr[arg1*64+arg2]++;
+        	}
+        }        
+//        int h = 0;
+//        for(int i=0; i<count.length; i++)
+//            for(int j=0; j<count[i].length; j++)
+//                if(i != j) {
+//                    cArr[h] = count[i][j][k];
+//                    h++;
+//                }
         return cArr;
     }
 

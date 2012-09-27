@@ -11,7 +11,7 @@ import java.util.Set;
  *
  * @author tom
  */
-public class Resource {
+public class Resource implements Comparable<Resource> {
     
     private String ID;
     private HashMap<String, String> properties = new HashMap<String, String>();
@@ -35,5 +35,10 @@ public class Resource {
     public void setPropertyValue(String p, String v) {
         properties.put(p, v);
     }
+
+	@Override
+	public int compareTo(Resource o) {
+		return this.getID().compareTo(o.getID());
+	}
     
 }

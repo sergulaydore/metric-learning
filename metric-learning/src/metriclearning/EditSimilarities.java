@@ -4,15 +4,11 @@
  */
 package metriclearning;
 
-import com.aliasi.spell.ext.WeightedEditDistanceExtended;
-import de.vogella.algorithms.dijkstra.model.DijkstraAlgorithm;
-import de.vogella.algorithms.dijkstra.model.Edge;
-import de.vogella.algorithms.dijkstra.model.Graph;
-import de.vogella.algorithms.dijkstra.model.Vertex;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
-import java.util.ArrayList;
-import java.util.LinkedList;
+
+import utility.WeightedEditDistanceExtended;
+
 
 /**
  *
@@ -33,79 +29,6 @@ public class EditSimilarities {
     private static int K;
 
     
-    private static double getUnNormalisedDijkstraSimilarity(String s, String t, int k, Couple c) {
-
-        source = filter(s);
-        target = filter(t);
-
-        ArrayList<Vertex> vertexes = new ArrayList<Vertex>();
-        ArrayList<Edge> edges = new ArrayList<Edge>();
-
-        int rowsize = target.length() + 1;
-
-        for (int i = 0; i < source.length() + 1; i++) {
-            for (int j = 0; j < target.length() + 1; j++) {
-                char I, J;
-                int row, col;
-                if (i > 0) {
-                    I = source.charAt(i - 1);
-                    row = charToPosition(I);
-                } else {
-                    I = '*';
-                    row = 63;
-                }
-                if (j > 0) {
-                    J = target.charAt(j - 1);
-                    col = charToPosition(J);
-                } else {
-                    J = '*';
-                    col = 63;
-                }
-                Vertex v = new Vertex(i + "," + j, "Node_" + I + "," + J);
-                vertexes.add(v);
-//                System.out.println("added: "+(vertexes.size()-1)+" Node_"+I+","+J);
-                if (i > 0) { // deletion
-                    edges.add(new Edge("Del_" + I, vertexes.get((i - 1) * rowsize + j), v, M[row][63][k], Edge.DEL));
-//                    System.out.println(i+","+j+") Del-linked: "+((i-1)*rowsize+j)+" -> "+(vertexes.size()-1));
-                }
-                if (j > 0) { // insertion
-                    edges.add(new Edge("Ins_" + J, vertexes.get(i * rowsize + j - 1), v, M[63][col][k], Edge.INS));
-//                    System.out.println(i+","+j+") Add-linked: "+(i*rowsize+j-1)+" -> "+(vertexes.size()-1));
-                }
-                if (i > 0 && j > 0) { // substitution
-                    edges.add(new Edge("Sub_" + I + "," + J, vertexes.get((i - 1) * rowsize + j - 1), v, M[row][col][k], Edge.SUB));
-//                    System.out.println(i+","+j+") Sub-linked: "+((i-1)*rowsize+j-1)+" -> "+(vertexes.size()-1));
-                }
-            }
-        }
-
-        Graph graph = new Graph(vertexes, edges);
-        DijkstraAlgorithm d = new DijkstraAlgorithm(graph);
-
-        d.execute(vertexes.get(0));
-        // gets the path to the last node (i.e. the target)
-        LinkedList<Vertex> lv = d.getPath(vertexes.get(vertexes.size() - 1));
-
-        double l = 0.0;
-        for(int i=0; i<lv.size()-1; i++) {
-            Vertex v1 = lv.get(i);
-            Vertex v2 = lv.get(i+1);
-            
-            for(Edge e : edges)
-                if(e.getSource().equals(v1) && e.getDestination().equals(v2)) {
-                    l += e.getWeight();
-                    String[] v2id = v2.getId().split(",");
-                    if(e.getType() == Edge.SUB)
-                        countSub(Integer.parseInt(v2id[0]) - 1, Integer.parseInt(v2id[1]) - 1, k, c);
-                    else if (e.getType() == Edge.DEL)
-                        countDel(Integer.parseInt(v2id[0]) - 1, k, c);
-                    else // Edge.INS:
-                        countIns(Integer.parseInt(v2id[1]) - 1, k, c);
-                }
-        }
-
-        return l;
-    }
 
     private static String filter(String sIn) {
         sIn = Normalizer.normalize(sIn, Form.NFD);
@@ -197,87 +120,30 @@ public class EditSimilarities {
 
     }
 
-    public static double getDijkstraSimilarity(String string1, String string2, int k, Couple c) {
-        
-        String[] strings1 = string1.split(" ");
-        String[] strings2 = string2.split(" ");
-        
-        double sum1 = 0.0;
-        for(String s1: strings1) {
-            double max = 0.0;
-            for(String s2 : strings2) {
-                double dld = getUnNormalisedDijkstraSimilarity(s1, s2, k, c);
-                // get the max possible levenstein distance score for string
-                double maxLen = s1.length() + s2.length();
-                double sim;
-                // check for 0 maxLen
-                if (maxLen == 0) {
-                    // as both strings identically zero length
-                    sim = 1.0;
-                } else {
-                    // return actual / possible levenstein distance to get 0-1 range
-                    sim = 1.0 - (dld / maxLen);
-                }
-                
-                if(sim > max)
-                    max = sim;
-//                System.out.println("sim('"+s1+"','"+s2+"') = "+sim);
-            }
-            sum1 += max;
-//            System.out.println("bestsim('"+s1+"',b) = "+max);
-        }
-        
-        double sum2 = 0.0;
-        for(String s2: strings2) {
-            double max = 0.0;
-            for(String s1 : strings1) {
-                double dld = getUnNormalisedDijkstraSimilarity(s1, s2, k, c);
-                // get the max possible levenstein distance score for string
-                double maxLen = s1.length() + s2.length();
-                double sim;
-                // check for 0 maxLen
-                if (maxLen == 0) {
-                    // as both strings identically zero length
-                    sim = 1.0;
-                } else {
-                    // return actual / possible levenstein distance to get 0-1 range
-                    sim = 1.0 - (dld / maxLen);
-                }
-                
-                if(sim > max)
-                    max = sim;
-//                System.out.println("sim('"+s2+"','"+s1+"') = "+sim);
-            }
-            sum2 += max;
-//            System.out.println("bestsim(a,'"+s2+"') = "+max);
-        }
-        
-        return Math.pow(((sum1 / strings1.length) + (sum2 / strings2.length)) / 2, 5.0);
-    }
     
     public static double[] getCostsMatrixAsArray(int k) {
-        double[] Marr = new double[4032];
+        double[] Marr = new double[4096];
         int h = 0;
         for (int i = 0; i < M.length; i++) {
             for (int j = 0; j < M[i].length; j++) {
-                if (i != j) {
+//                if (i != j) {
                     Marr[h] = M[i][j][k];
                     h++;
-                }
+//                }
             }
         }
         return Marr;
     }
 
     public static int[] getCountMatrixAsArray(int k) {
-        int[] Carr = new int[4032];
+        int[] Carr = new int[4096];
         int h = 0;
         for (int i = 0; i < count.length; i++) {
             for (int j = 0; j < count[i].length; j++) {
-                if (i != j) {
+//                if (i != j) {
                     Carr[h] = count[i][j][k];
                     h++;
-                }
+//                }
             }
         }
         return Carr;
@@ -311,13 +177,12 @@ public class EditSimilarities {
         String a = "Democrat";
         String b = "Republican";
         Couple c = new Couple(new Resource(a), new Resource(b));
-        c.initializeCount(1);
         
 //        double d = getDijkstraSimilarity(a, b, 0, c);
         double d = getEditSimilarity(a, b, 0, c);
 //        System.out.println("a = "+a);
 //        System.out.println("b = "+b);
-//        System.out.println("sim(a,b) = "+d);
+        System.out.println("sim(a,b) = "+d);
 
     }
 

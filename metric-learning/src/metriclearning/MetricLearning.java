@@ -11,6 +11,8 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Set;
@@ -39,7 +41,7 @@ public class MetricLearning {
     // the source/target/oracle KB
     // The oracle's knowledge is a mapping among instances of source KB
     // and target KB (oracle's answers).
-    static String basePath = "data/paper/";
+    static String basePath = "data/person1/";
     static String sourcePath;
     static String targetPath;
     static String mappingPath;
@@ -90,7 +92,7 @@ public class MetricLearning {
     
     // weights (and counts) of the perceptron
     static boolean usePerceptronLearning = true;
-    static double[] weights = new double[4032];
+    static double[] weights = new double[4096];
     static final int MAX_PERCEPTRON_ITER = 500;
     
     // sets to calculate precision and recall
@@ -114,16 +116,15 @@ public class MetricLearning {
      */
     public static void main(String[] args) throws IOException {
         
-//        if(args.length >= 1) basePath = "data/" + args[0] + "/";
-//        if(args.length >= 2) {
-//            MOSTINF_POS_CAND = Integer.parseInt(args[1]);
-//            MOSTINF_NEG_CAND = Integer.parseInt(args[1]);
-//        }
-//        if(args.length >= 3) bias_factor = Double.parseDouble(args[2]);
-//        if(args.length >= 4) createOctaveScript = Boolean.parseBoolean(args[3]);
-//        if(args.length >= 5) sendEmail = Boolean.parseBoolean(args[4]);
-//               
-//        
+        if(args.length >= 1) basePath = "data/" + args[0] + "/";
+        if(args.length >= 2) {
+            MOSTINF_POS_CAND = Integer.parseInt(args[1]);
+            MOSTINF_NEG_CAND = Integer.parseInt(args[1]);
+        }
+        if(args.length >= 3) bias_factor = Double.parseDouble(args[2]);
+        if(args.length >= 4) createOctaveScript = Boolean.parseBoolean(args[3]);
+        if(args.length >= 5) sendEmail = Boolean.parseBoolean(args[4]);
+        
         sourcePath = basePath + "sources.csv";
         targetPath = basePath + "targets.csv";
         mappingPath = basePath + "mapping.csv";
@@ -149,16 +150,7 @@ public class MetricLearning {
         
 //        buildDatasets();
 //        System.exit(0);
-        
-        /* DONE
-         * Obs.:
-         * - The first classifer is extremely important (bias factor = 1.2)
-         * - The "venue" dimension is less reliable because SIGMOD = International...
-         * - The perceptron isn't iterating, but f1>0.97:
-         * - It works well when we have k actual pos and k actual neg:
-         *     we could ask again until we have the first neg that is most inf.
-         */
-        
+                
         EditSimilarities.initialize(n);
         
         // initialize the weights normalizer
@@ -166,17 +158,15 @@ public class MetricLearning {
         for(int i=0; i<n; i++)
             oldmax[i] = 1.0;
                 
-//        couples.addAll(edjToCouples(callEdJoin(1)));
+        couples.addAll(edjToCouples(callEdJoin(1)));
 //        showCouples();
-        for(Resource s : sources)
-        	for(Resource t : targets)
-        		couples.add(new Couple(s,t));
+//        for(Resource s : sources)
+//        	for(Resource t : targets)
+//        		couples.add(new Couple(s,t));
                 
         // compute the similarity
-        for(Couple c : couples) {
-            c.initializeCount(n);
+        for(Couple c : couples)
             computeSimilarity(c);
-        }
                 
         boolean goForTest = false;
         double f1 = 0.0;
@@ -190,10 +180,8 @@ public class MetricLearning {
                 // we shall remove all dupes.
                 checkDuplicates();
                 
-                for(Couple c : couples) {
-                    c.initializeCount(n);
+                for(Couple c : couples)
                     computeSimilarity(c);
-                }
                 
             }
             
@@ -658,29 +646,30 @@ public class MetricLearning {
     }
     
     private static void computeM(int k) {
-        int[] countSumFalsePos = new int[4032];
-        int[] countSumFalseNeg = new int[4032];
+    	int len = weights.length;
+        int[] countSumFalsePos = new int[len];
+        int[] countSumFalseNeg = new int[len];
         // sum up error weights
-        for(int i=0; i<4032; i++) {
+        for(int i=0; i<len; i++) {
             countSumFalsePos[i] = 0;
             countSumFalseNeg[i] = 0;
         }
         for(Couple c : couples) {
             if(c.getClassification() == Couple.FP) {
                 int[] cArr = c.getCountMatrixAsArray(k);
-                for(int i=0; i<4032; i++)
+                for(int i=0; i<len; i++)
                     countSumFalsePos[i] += cArr[i];
             }
             if(c.getClassification() == Couple.FN) {
                 int[] cArr = c.getCountMatrixAsArray(k);
-                for(int i=0; i<4032; i++)
+                for(int i=0; i<len; i++)
                     countSumFalseNeg[i] += cArr[i];
             }
         }
 
         weights = EditSimilarities.getCostsMatrixAsArray(k);
         double max = 0.0;
-        for(int i=0; i<weights.length; i++) {
+        for(int i=0; i<len; i++) {
             // we should count how many times a weight was used
             // *only* when we have errors (fp and fn).
 //                double normFactor = sources.size() != 1 ? sources.size()-1 : 1;
@@ -693,13 +682,13 @@ public class MetricLearning {
         oldmax[k] = max;
         // update and normalize each weight
         // w' = root3(w / M)
-        for(int i=0; i<weights.length; i++) {
-            int a = i/63;
-            int b = i%63;
-            int b0 = b + (a<=b ? 1 : 0);
+        for(int i=0; i<len; i++) {
+            int a = i/64; // i/63;
+            int b = i%64; // i%63;
+            //int b0 = b + (a<=b ? 1 : 0);
             if(weights[i] < 0)
                 weights[i] = 0;
-            EditSimilarities.setWeight(a, b0, k, Math.pow(weights[i]/max, 1));
+            EditSimilarities.setWeight(a, b, k, Math.pow(weights[i]/max, 1));
 //                w(a+","+b0+","+k+" = "+weights[i]+"/"+max+"^0.3 = "+Math.pow(weights[i]/max, 0.3333));
 //                if(countSumTrue[i] > countSumFalse[i])
 //                    JOptionPane.showMessageDialog(null,"("+a+","+b0+"): "+
@@ -799,8 +788,10 @@ public class MetricLearning {
     }
 
     private static TreeSet<String> callEdJoin(int iter) {
+    	System.out.print("Widening beta_dist ");
+    	
         for(int beta_dist = 1; true; beta_dist++) {
-            w("beta_dist = "+beta_dist+"\n");
+            System.out.print(".");
             
             double theta_generic = bias;
             Resource first = sources.get(0);
@@ -833,12 +824,23 @@ public class MetricLearning {
 //                else
                 int min = (theta_dist-beta_dist)>0 ? (theta_dist-beta_dist) : 0;
                 int max = theta_dist+beta_dist;
+                                
+                // shutting up System.out
+                PrintStream originalStream = System.out;
+                PrintStream dummyStream = new PrintStream(new OutputStream(){
+                    public void write(int b) {
+                        //NO-OP
+                    }
+                });
+                System.setOut(dummyStream);
                 
-                // FIXME strange behavior with property no.2 (description) of abt-buy
                 TreeSet<String> section = EdJoinPlus.runOnEntries(
                         min, max, sTree, tTree);
+
+                // turning on System.out
+                System.setOut(originalStream);
                 
-                w("\n#"+propIter+" section = "+section.size()+"\n");
+//                w("\n#"+propIter+" section = "+section.size()+"\n");
             
                 if(propIter == 0) {
                     intersection.addAll(section);
@@ -853,7 +855,7 @@ public class MetricLearning {
                 propIter++;
             }
             
-            w("intersection = "+intersection.size()+"\n");
+//            w("intersection = "+intersection.size()+"\n");
             
             int maybePos = 0, maybeNeg = 0;
             for(String s : intersection) {
@@ -864,11 +866,13 @@ public class MetricLearning {
                     maybeNeg++;
             }
             
-            w("maybe: pos = "+maybePos+", neg = "+maybeNeg+"\n");
+//            w("maybe: pos = "+maybePos+", neg = "+maybeNeg+"\n");
             
             if((maybePos >= MOSTINF_POS_CAND*iter && maybeNeg >= MOSTINF_NEG_CAND*iter)
-                    || beta_dist == BETA_MAX)
+                    || beta_dist == BETA_MAX) {
+            	System.out.println();
                 return intersection;
+            }
         }
     }
 
@@ -937,7 +941,6 @@ public class MetricLearning {
         for(Resource s : sources) {
             for(Resource t : targets) {
                 Couple c = new Couple(s, t);
-                c.initializeCount(n);
                 computeSimilarity(c);
                 if(isPositive(c)) {
                     if(classify(c)) {
@@ -1162,7 +1165,6 @@ public class MetricLearning {
                 break;
             }
         Couple c = new Couple(r1, r2);
-        c.initializeCount(n);
         computeSimilarity(c);
         return c;
     }
@@ -1207,7 +1209,6 @@ public class MetricLearning {
                     t.setPropertyValue(p, "GeneratedValue");
                 }
                 Couple c = new Couple(s, t);
-                c.initializeCount(n);
                 computeSimilarity(c);
                 couples.add(c);
                 actualPos.add(c);
@@ -1220,7 +1221,6 @@ public class MetricLearning {
             while(actualNeg.size() < MOSTINF_NEG_CAND) {
                 Couple c = new Couple(sources.get((int)Math.random()*sources.size()),
                         targets.get((int)(Math.random()*targets.size())));
-                c.initializeCount(n);
                 computeSimilarity(c);
                 if(!isPositive(c) && !added.contains(c)) {
                     actualNeg.add(c);
@@ -1234,3 +1234,4 @@ public class MetricLearning {
 
     
 }
+

@@ -7,9 +7,10 @@ import java.util.LinkedList;
 import java.util.TreeSet;
 
 import metriclearning.Couple;
+import metriclearning.Operation;
 import metriclearning.Resource;
+import similarities.WeightedEditDistanceExtended;
 import utility.OrderByLengthAndAlpha;
-import utility.WeightedEditDistanceExtended;
 
 
 /**
@@ -18,14 +19,23 @@ import utility.WeightedEditDistanceExtended;
  */
 public class PassJoin {
 
-	static WeightedEditDistanceExtended wed = new WeightedEditDistanceExtended() {
+	private static final double INIT_FULL_WEIGHT = 1.0;
+	private static final double INIT_CASE_WEIGHT = 0.5;
+
+	private static HashMap<String, Double> weights = new HashMap<String, Double>();
+	
+	private static WeightedEditDistanceExtended wed = new WeightedEditDistanceExtended() {
 		@Override
 		public double transposeWeight(char cFirst, char cSecond) {
 			return Double.POSITIVE_INFINITY;
 		}
 		@Override
 		public double substituteWeight(char cDeleted, char cInserted) {
-			return 1.0;
+			Double d = weights.get(cDeleted+","+cInserted);
+			if(d == null)
+				return INIT_FULL_WEIGHT;
+			else
+				return d;
 		}
 		@Override
 		public double matchWeight(char cMatched) {
@@ -33,18 +43,47 @@ public class PassJoin {
 		}
 		@Override
 		public double insertWeight(char cInserted) {
-			return 1.0;
+			Double d = weights.get(","+cInserted);
+			if(d == null)
+				return INIT_FULL_WEIGHT;
+			else
+				return d;
 		}
 		@Override
 		public double deleteWeight(char cDeleted) {
-			return 1.0;
+			Double d = weights.get(cDeleted+",");
+			if(d == null)
+				return INIT_FULL_WEIGHT;
+			else
+				return d;
 		}
 	};
-		
+			
+	private static double getMinWeight() {
+		double min = Double.MAX_VALUE;
+		for(Double d : weights.values())
+			if(d < min)
+				min = d;
+		return min;
+	}
 	
-	public static TreeSet<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, String propertyName, int tau_min, int tau) {
+	public static TreeSet<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, 
+			String propertyName, double tau_min, double tau_max) {
+		
+		weights.clear();
+		for(char c='A'; c<='Z'; c++) {
+			weights.put(c+","+(char)(c+32), INIT_CASE_WEIGHT);
+			weights.put((char)(c+32)+","+c, INIT_CASE_WEIGHT);
+		}
+		
+		int tau = (int) tau_max+1;
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
+		
+		// TODO for each dimension...
+		// delete the input parameter "propertyName"
+		// and load them from the first resource
+		
 		
 		Collections.sort(sources, new OrderByLengthAndAlpha(propertyName));
 		Collections.sort(targets, new OrderByLengthAndAlpha(propertyName));
@@ -69,10 +108,12 @@ public class PassJoin {
 								for(Resource cand : list) {
 									String s = cand.getPropertyValue(propertyName);
 									String t = res.getPropertyValue(propertyName);
-									double d = wed.proximity(s, t);
-									if(d <= tau && d >= tau_min) {
+									// wed.similarity considers string lengths
+									// XXX Should we use distances?
+									double d = wed.similarity(s, t);
+									if(d <= tau_max && d >= tau_min) {
 										Couple c = new Couple(cand, res);
-										c.addDistance(d);
+										c.addSimilarity(d);
 										results.add(c);
 									}
 								}
@@ -92,11 +133,11 @@ public class PassJoin {
 	 * @param tau
 	 * @return
 	 */
-	private static InvertedIndex buildInvertedIndex(ArrayList<Resource> resources, String propertyName, int tau) {
+	private static InvertedIndex buildInvertedIndex(ArrayList<Resource> resources, String propertyName, double tau) {
 		InvertedIndex invIndex = new InvertedIndex();
 		for(Resource r : resources) {
 			String s = r.getPropertyValue(propertyName);
-			PartitionStrategy ps = getEvenPartitionStrategy(s, tau + 1);
+			PartitionStrategy ps = getEvenPartitionStrategy(s, (int)tau + 1);
 			LinkedList<String> parts = ps.getPartitions();
 			for(int i=1; i<=parts.size(); i++) {
 				String part = parts.get(i-1);
@@ -170,9 +211,12 @@ public class PassJoin {
 		return partStr;
 	}
 
-	/*
+	/**
 	 * This method follows the so-called "even partition" policy, where the length of the
 	 * first segments are always equal or shorter than the length of the last segments.
+	 * @param s
+	 * @param thr
+	 * @return
 	 */
 	private static PartitionStrategy getEvenPartitionStrategy(String s, int thr) {
 		int len = s.length() / thr;

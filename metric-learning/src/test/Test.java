@@ -4,16 +4,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.TreeSet;
 
-import filters.passjoin.PassJoin;
-
+import metriclearning.Couple;
+import metriclearning.Resource;
 import utility.SystemOutHandler;
-
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
 import au.com.bytecode.opencsv.CSVReader;
-
-import metriclearning.Couple;
-import metriclearning.Resource;
+import filters.passjoin.PassJoin;
 
 
 public class Test {
@@ -112,18 +109,6 @@ public class Test {
 		}
 	}
 
-	/**
-	 * @param args
-	 * @throws IOException 
-	 */
-	public static void main(String[] args) throws IOException {
-		
-//		testPassJoin("data/2-dblp-scholar/Scholar.csv", "title");
-//		testEDJoin("data/2-dblp-scholar/Scholar.csv", "title");
-		crossValidation("data/2-dblp-scholar/Scholar.csv", "title");
-		
-	}
-
 	private static void crossValidation(String dataset, String propertyName) throws IOException {
 		System.out.println("PassJoin");
 		TreeSet<Couple> pj = testPassJoinOnce(dataset, propertyName, 1);
@@ -138,8 +123,8 @@ public class Test {
 			if(!ej.contains( c.getSource().getID()+"#"+c.getTarget().getID() ))
 				System.out.println(i+". "+c.getSource().getID()
 						+ "\t" + c.getTarget().getID()
-						+ "\t" + c.getSource().getPropertyValue("title")
-						+ "\t" + c.getTarget().getPropertyValue("title")
+						+ "\t" + c.getSource().getPropertyValue(propertyName)
+						+ "\t" + c.getTarget().getPropertyValue(propertyName)
 						+ "\t" + c.getSimilarities().get(0));
 		}
 		
@@ -204,5 +189,56 @@ public class Test {
 
 		return passjResults;
 	}
+
+	private static TreeSet<Couple> testPassJoin(String dataset,
+			String propertyName, double theta, double beta) throws IOException {
+		
+		double tmin = theta-beta;
+		double tmax = theta+beta;
+		
+	    loadKnowledgeBases(dataset, dataset);
+
+		System.out.println(sources.size());
+
+	    TreeSet<Couple> passjResults = null;
+	    
+		long start = System.currentTimeMillis();
+		
+		passjResults = PassJoin.passJoin(sources, targets, propertyName, theta-beta, theta+beta);
+		
+		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
+		System.out.println("("+tmin+","+tmax+")\t"+compTime+"\t"+passjResults.size());
+		
+		sources.clear();
+		targets.clear();
+
+		return passjResults;
+	}
+
+	/**
+		 * @param args
+		 * @throws IOException 
+		 */
+		public static void main(String[] args) throws IOException {
+			
+			String pname = "title";
+			TreeSet<Couple> pj = testPassJoin("data/1-dblp-acm/sources.csv", pname, 0.5, 0.1);
+			
+			int i = 0;
+			System.out.println("printing non-equal strings only");
+			for(Couple c : pj) {
+				i++;
+				if(c.getSimilarities().get(0) < 1.0)
+					System.out.println(i+". "+c.getSource().getID()
+							+ "\t" + c.getTarget().getID()
+							+ "\t" + c.getSource().getOriginalPropertyValue(pname)
+							+ "\t" + c.getTarget().getOriginalPropertyValue(pname)
+							+ "\t" + c.getSimilarities().get(0));
+			}
+	//		testPassJoin("data/0-paper/sources.csv", "name");
+	//		testEDJoin("data/2-dblp-scholar/Scholar.csv", "title");
+	//		crossValidation("data/2-dblp-scholar/Scholar.csv", "title");
+			
+		}
 
 }

@@ -14,7 +14,7 @@
  * +1 (718) 290-9170.
  */
 
-package utility;
+package similarities;
 
 import com.aliasi.util.Distance;
 import com.aliasi.util.Proximity;
@@ -183,6 +183,12 @@ public abstract class WeightedEditDistanceExtended
         return distance(csIn,csOut,false);
     }
 
+    public double similarity(CharSequence csIn, CharSequence csOut) {
+    	if(csIn.length() + csOut.length() == 0)
+    		return 1.0;
+        return 1.0 - distance(csIn,csOut,false) / (double)(Math.max(csIn.length(), csOut.length()));
+    }
+    
     /**
      * Returns the weighted edit distance between the specified
      * character sequences ordering according to the specified

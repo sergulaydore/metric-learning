@@ -7,7 +7,7 @@ package metriclearning;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 
-import utility.WeightedEditDistanceExtended;
+import similarities.WeightedEditDistanceExtended;
 
 
 /**

@@ -16,6 +16,7 @@ public class Couple implements Comparable<Couple> {
     private Resource target;
     
     private ArrayList<Double> similarities;
+    private ArrayList<Double> distances;
     
     private double gamma;
     
@@ -75,24 +76,34 @@ public class Couple implements Comparable<Couple> {
     public ArrayList<Double> getSimilarities() {
         return similarities;
     }
+
+	public ArrayList<Double> getDistances() {
+		return distances;
+	}
     
-    public void addSimilarity(double d) {
-        similarities.add(d);
+    public void addSimilarity(double s) {
+        similarities.add(s);
+        double d = s==0 ? Double.POSITIVE_INFINITY : (1.0-s)/s;
+        distances.add(d);
     }
 
     public void addDistance(double d) {
-        similarities.add(1.0 / (1.0 + d));
+    	double s = d / (1.0 + d);
+        similarities.add(s);
+        distances.add(d);
     }
 
     public Couple(Resource source, Resource target) {
         this.source = source;
         this.target = target;
         similarities = new ArrayList<Double>();
+        distances = new ArrayList<Double>();
         ops = new ArrayList<Operation>();
     }
 
     public void clearSimilarities() {
         similarities.clear();
+        distances.clear();
     }
     
     public int[] getCountMatrixAsArray(int k) {

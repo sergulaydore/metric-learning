@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.TreeSet;
 
+import filters.StandardFilter;
+
 import metriclearning.Couple;
 import metriclearning.Operation;
 import metriclearning.Resource;
@@ -17,66 +19,19 @@ import utility.OrderByLengthAndAlpha;
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class PassJoin {
+public class PassJoin extends StandardFilter {
 
-	private static final double INIT_FULL_WEIGHT = 1.0;
-	private static final double INIT_CASE_WEIGHT = 0.5;
-
-	private static HashMap<String, Double> weights = new HashMap<String, Double>();
-	
-	private static WeightedEditDistanceExtended wed = new WeightedEditDistanceExtended() {
-		@Override
-		public double transposeWeight(char cFirst, char cSecond) {
-			return Double.POSITIVE_INFINITY;
-		}
-		@Override
-		public double substituteWeight(char cDeleted, char cInserted) {
-			Double d = weights.get(cDeleted+","+cInserted);
-			if(d == null)
-				return INIT_FULL_WEIGHT;
-			else
-				return d;
-		}
-		@Override
-		public double matchWeight(char cMatched) {
-			return 0.0;
-		}
-		@Override
-		public double insertWeight(char cInserted) {
-			Double d = weights.get(","+cInserted);
-			if(d == null)
-				return INIT_FULL_WEIGHT;
-			else
-				return d;
-		}
-		@Override
-		public double deleteWeight(char cDeleted) {
-			Double d = weights.get(cDeleted+",");
-			if(d == null)
-				return INIT_FULL_WEIGHT;
-			else
-				return d;
-		}
-	};
-			
-	private static double getMinWeight() {
-		double min = Double.MAX_VALUE;
-		for(Double d : weights.values())
-			if(d < min)
-				min = d;
-		return min;
-	}
-	
 	public static TreeSet<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, 
-			String propertyName, double tau_min, double tau_max) {
+			String propertyName, double θ) {
 		
-		weights.clear();
-		for(char c='A'; c<='Z'; c++) {
-			weights.put(c+","+(char)(c+32), INIT_CASE_WEIGHT);
-			weights.put((char)(c+32)+","+c, INIT_CASE_WEIGHT);
-		}
+		loadCaseWeights();
 		
-		int tau = (int) tau_max+1;
+		weights.put("i,ε", 0.5);
+		weights.put("r,ε", 0.5);
+		weights.put("s,ε", 0.5);
+		weights.put("t,ε", 0.5);
+		
+		int tau = (int) (θ / getMinWeight());
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 		
@@ -89,7 +44,8 @@ public class PassJoin {
 		Collections.sort(targets, new OrderByLengthAndAlpha(propertyName));
 		
 		InvertedIndex sourceIndex = buildInvertedIndex(sources, propertyName, tau);
-		
+		int count = 0;
+
 		for(Resource res : targets) {
 			String r = res.getPropertyValue(propertyName);
 			int rl = r.length();
@@ -109,11 +65,11 @@ public class PassJoin {
 									String s = cand.getPropertyValue(propertyName);
 									String t = res.getPropertyValue(propertyName);
 									// wed.similarity considers string lengths
-									// XXX Should we use distances?
-									double d = wed.similarity(s, t);
-									if(d <= tau_max && d >= tau_min) {
+									double d = wed.proximity(s, t);
+									count++;
+									if(d <= θ) {
 										Couple c = new Couple(cand, res);
-										c.addSimilarity(d);
+										c.addDistance(d);
 										results.add(c);
 									}
 								}
@@ -123,7 +79,7 @@ public class PassJoin {
 				}
 			}
 		}
-		
+		System.out.println("count = "+count);
 		return results;
 	}
 	

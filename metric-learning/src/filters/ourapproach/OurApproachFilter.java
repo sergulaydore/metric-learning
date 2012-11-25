@@ -1,12 +1,12 @@
 package filters.ourapproach;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.Vector;
+
+import test.Test;
 
 import metriclearning.Couple;
 import metriclearning.Resource;
@@ -26,25 +26,21 @@ public class OurApproachFilter extends StandardFilter {
 			ArrayList<Resource> targets, String propertyName, double θ) {
 		
 		loadCaseWeights();
-		
-		weights.put("i,ε", 0.5);
-		weights.put("r,ε", 0.5);
-		weights.put("s,ε", 0.5);
-		weights.put("t,ε", 0.5);
+		loadConfusionMatrix();
 		
 		updatef();
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 
-		int tau = (int) (θ / getMinWeight());
-//		System.out.println("tau = "+tau);
+		double mw = getMinWeight();
+		double tau = θ / mw;
 		
-		int count = 0;
+		long start = System.currentTimeMillis();
+
 		for(Resource s : sources) {
 			String sp = s.getPropertyValue(propertyName);
 			for(Resource t : targets) {
 				String tp = t.getPropertyValue(propertyName);
-//				System.out.println("<"+sp+", "+tp+"> "+(Math.abs(sp.length() - tp.length()) <= tau));
 				if(Math.abs(sp.length() - tp.length()) <= tau) {
 					Vector<Character> cs = new Vector<Character>();
 					for(int i=0; i<sp.length(); i++)
@@ -55,28 +51,34 @@ public class OurApproachFilter extends StandardFilter {
 					Vector<Character> c = subtract(cs, ct);
 					c.addAll(subtract(ct, cs));
 //					Collections.sort(c);
-//					System.out.println("  -> C is "+print(c));
-					double minSub = 1.0, minInsdel = 1.0;
-					for(char ch : c) {
-						double w1 = f_sub.get(ch);
-						if(w1 < minSub)
-							minSub = w1;
-						double w2 = f_insdel.get(ch);
-						if(w2 < minInsdel)
-							minInsdel = w2;
-					}
-					int size = c.size();
-					double minGap = (int)(size / 2) * minSub + (size % 2) * minInsdel;
-//					System.out.println("  -> minGap = "+minGap+" ("+(minGap <= θ)+")");
-					if(minGap <= θ) {
+//					double minSub = 1.0, minInsdel = 1.0;
+//					for(char ch : c) {
+//						double w1 = f_sub.get(ch);
+//						if(w1 < minSub)
+//							minSub = w1;
+//						double w2 = f_insdel.get(ch);
+//						if(w2 < minInsdel)
+//							minInsdel = w2;
+//					}
+					
+//					String exclDisj = xor(sp, tp);
+					
+//					double minSub = 1.0;//, minInsdel = 1.0;
+//					for(int i=0; i<exclDisj.length(); i++) {
+//						char ch = exclDisj.charAt(i);
+//						double w1 = f_sub.get(ch);
+//						if(w1 < minSub)
+//							minSub = w1;
+////						double w2 = f_insdel.get(ch);
+////						if(w2 < minInsdel)
+////							minInsdel = w2;
+//					}
+					double minGap = (int)(c.size() / 2);// + (size % 2) * minInsdel;
+					if(minGap <= tau) {
 						/*
 						 *  Verification.
 						 */
-						String src = s.getPropertyValue(propertyName);
-						String tgt = t.getPropertyValue(propertyName);
-						double d = wed.proximity(src, tgt);
-						count++;
-//						System.out.println("     -> d = "+d+" ("+(d <= θ)+")");
+						double d = wed.proximity(sp, tp);
 						if(d <= θ) {
 							Couple cpl = new Couple(s, t);
 							cpl.addDistance(d);
@@ -86,7 +88,10 @@ public class OurApproachFilter extends StandardFilter {
 				}
 			}
 		}
-		System.out.println("count = "+count);
+		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
+		System.out.print(compTime+"\t");
+		Test.append(compTime+"\t");
+		
 		return results;
 	}
 	
@@ -98,6 +103,25 @@ public class OurApproachFilter extends StandardFilter {
 		return s+")";
 	}
 
+	private static String xor(String a, String b) {
+
+		String r = "";
+		for(int i=0; i<a.length(); i++) {
+			char c = a.charAt(i);
+			boolean found = false;
+			for(int j=0; j<b.length(); j++) {
+				if(c == b.charAt(j)) {
+					b = b.substring(0, j) + b.substring(j+1, b.length());
+					found = true;
+					break;
+				}
+			}
+			if(!found)
+				r = r + c;
+		}
+		
+		return r+b;
+	}
 
 	private static Vector<Character> subtract(Vector<Character> cs,
 			Vector<Character> ct) {

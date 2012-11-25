@@ -1,6 +1,13 @@
 package test;
+import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream.GetField;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -19,6 +26,7 @@ import utility.SystemOutHandler;
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
 import au.com.bytecode.opencsv.CSVReader;
+import filters.edjoin.EdJoinFilter;
 import filters.ourapproach.OurApproachFilter;
 import filters.passjoin.PassJoin;
 
@@ -27,17 +35,30 @@ public class Test {
 
 	private static ArrayList<Resource> sources = new ArrayList<Resource>();
 	private static ArrayList<Resource> targets = new ArrayList<Resource>();
+	
+	private static String sys_out = "\n";
+	private static double THETA_MAX;
 
     private static void loadKnowledgeBases(String sourcePath, String targetPath) throws IOException {
-    	
+    	loadKnowledgeBases(sourcePath, targetPath, 0, Integer.MAX_VALUE);
+    }
+    
+    private static void clearKnowledgeBases() {
     	sources.clear();
     	targets.clear();
+    	System.gc();
+    }
+    
+    private static void loadKnowledgeBases(String sourcePath, String targetPath, int startOffset, int endOffset) throws IOException {
     	
 	    String[] ignoredList = {"id", "ID"};
     	
         CSVReader reader = new CSVReader(new FileReader(sourcePath));
         String [] titles = reader.readNext(); // gets the column titles
+        for(int i=0; i<startOffset; i++) // skips start offset
+        	reader.readNext();
         String [] nextLine;
+        int count = 0;
         while ((nextLine = reader.readNext()) != null) {
             Resource r = new Resource(nextLine[0]);
             for(int i=0; i<nextLine.length; i++)
@@ -48,10 +69,15 @@ public class Test {
                         r.setPropertyValue(titles[i], "");
                 }
             sources.add(r);
+            if(++count >= endOffset)
+            	break;
         }
         
         reader = new CSVReader(new FileReader(targetPath));
         titles = reader.readNext(); // gets the column titles
+        for(int i=0; i<startOffset; i++) // skips offset
+        	reader.readNext();
+        count = 0;
         while ((nextLine = reader.readNext()) != null) {
             Resource r = new Resource(nextLine[0]);
             for(int i=0; i<nextLine.length; i++)
@@ -62,6 +88,8 @@ public class Test {
                         r.setPropertyValue(titles[i], "");
                 }
             targets.add(r);
+            if(++count >= endOffset)
+            	break;
         }
         
         reader.close();
@@ -149,27 +177,21 @@ public class Test {
 		}
 	}
 
-	private static TreeSet<String> testEdJoinOnce(String propertyName, int θ) throws IOException {
-
-        TreeSet<Entry> sTree = new TreeSet<Entry>();
-        for(Resource s : sources)
-            sTree.add(new Entry(s.getID(), s.getPropertyValue(propertyName)));
-        TreeSet<Entry> tTree = new TreeSet<Entry>();
-        for(Resource s : targets)
-            tTree.add(new Entry(s.getID(), s.getPropertyValue(propertyName)));
-
-		System.out.println(sources.size());
+	private static TreeSet<String> testEdJoinOnce(String propertyName, double θ) throws IOException {
+		
+		long start = System.currentTimeMillis();
+		
+//		System.out.println(sources.size());
 		
 		TreeSet<String> edjResults = null;
-					
-		long start = System.currentTimeMillis();
-
-		SystemOutHandler.shutDown();
-        edjResults = EdJoinPlus.runOnEntries(θ, θ, sTree, tTree);
-        SystemOutHandler.turnOn();
-
-		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+edjResults.size());
+		
+		edjResults = EdJoinFilter.edJoinFilter(sources, targets, propertyName, θ);
+		
+        long now = System.currentTimeMillis();
+		double compTime = (double)(now-start)/1000.0;
+		
+		System.out.println(θ+"\t"+compTime+"\t"+edjResults.size());
+		sys_out += θ+"\t"+compTime+"\t"+edjResults.size()+"\n";
 		
 		return edjResults;
 	}
@@ -192,7 +214,7 @@ public class Test {
 
 	private static TreeSet<Couple> testOurApproachFilter(String propertyName, double θ) throws IOException {
 
-		System.out.println(sources.size());
+//		System.out.println(sources.size());
 
 	    TreeSet<Couple> oafResults = null;
 	    
@@ -201,14 +223,16 @@ public class Test {
 		oafResults = OurApproachFilter.ourApproachFilter(sources, targets, propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+oafResults.size());
+//		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+oafResults.size());
+		System.out.println(θ+"\t"+compTime+"\t"+oafResults.size());
+		sys_out += θ+"\t"+compTime+"\t"+oafResults.size()+"\n";
 		
 		return oafResults;
 	}
 
 	private static TreeSet<Couple> testPassJoin(String propertyName, double θ) throws IOException {
 
-		System.out.println(sources.size());
+//		System.out.println(sources.size());
 
 	    TreeSet<Couple> passjResults = null;
 	    
@@ -217,7 +241,9 @@ public class Test {
 		passjResults = PassJoin.passJoin(sources, targets, propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
+//		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
+		System.out.println(θ+"\t"+compTime+"\t"+passjResults.size());
+		sys_out += θ+"\t"+compTime+"\t"+passjResults.size()+"\n";
 		
 		return passjResults;
 	}
@@ -273,53 +299,152 @@ public class Test {
 		return quadrResults;
 	}
 	
-	
+    private static void notify(String s) {
+    	
+  		String sysout = "";
+		try {
+			sysout = URLEncoder.encode(s, "ISO-8859-1");
+		} catch (UnsupportedEncodingException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+    	
+        try {
+            // Create a URL for the desired page
+            URL url = new URL("http://mommi84.altervista.org/notifier/index.php?"
+                    + "sysout="+sysout);
+
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+            // Read all the text returned by the server
+            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            in.close();
+        } catch (IOException e) {
+                e.printStackTrace();
+        }
+    }
+
 	/**
-		 * @param args
-		 * @throws IOException 
-		 */
-		public static void main(String[] args) throws IOException {
+	 * @param args
+	 * @throws IOException 
+	 */
+	public static void main(String[] args) throws IOException {
+		
+		String[] dataset = { 
+//				"data/1-dblp-acm/sources.csv",
+//				"data/1-dblp-acm/targets.csv",
+//				"data/3-amazon-googleproducts/targets.csv",
+//				"data/4-abt-buy/sources.csv",
+//				"data/5-person1/sources.csv",
+//				"data/6-restaurant/sources.csv",
+			"data/8-scalability/persons.csv",
+			"data/8-scalability/places.csv",
+			"data/8-scalability/works.csv",
+		};
+		String[] pname = {
+//				"title",
+//				"authors",
+//				"name",
+//				"description",
+//				"surname",
+//				"name",
+			"name",
+			"name",
+			"name",
+		};
+		
+//		launchTests(dataset, pname);
+		
+		scalabilityTests(dataset, pname);
+		
+	}
+
+	private static void scalabilityTests(String[] dataset, String[] pname) throws IOException {
+		
+		int delta = 50000;
+		THETA_MAX = 8;
+		
+		for(int i=0; i<dataset.length; i++) {
 			
-//			Vector<Character> cs = new Vector<Character>();
-//			cs.add('c'); cs.add('a'); cs.add('l'); cs.add('l');
-//			Vector<Character> ct = new Vector<Character>();
-//			ct.add('l');
-//			 
-//			Vector<Character> ctemp = new Vector<Character>(cs);
-//			cs.retainAll(ct);
-//			
-//			for(char c:cs)
-//				System.out.println(c);
-//			
-//			System.exit(0);
+			clearKnowledgeBases();
 			
-			String dataset = "data/1-dblp-acm/sources.csv", pname = "title";
-		    loadKnowledgeBases(dataset, dataset);
+			for(int j=0; j*delta <= sources.size(); j++) {
+				
+				loadKnowledgeBases(dataset[i], dataset[i], j*delta, (j+1)*delta);
+				
+				System.out.println(dataset[i]+" ("+sources.size()+")");
+				sys_out += dataset[i]+" ("+sources.size()+")\n";
 			
-			TreeSet<Couple> pj = testPassJoin(pname, 1.0);
-			TreeSet<String> pjs = new TreeSet<String>();
-			for(Couple c : pj) {
-//				System.out.println(c.getSource().getID()
-//						+ "\t" + c.getTarget().getID()
-//						+ "\t" + c.getSource().getOriginalPropertyValue(pname)
-//						+ "\t" + c.getTarget().getOriginalPropertyValue(pname)
-//						+ "\td = " + c.getDistances().get(0));
-				pjs.add(c.getSource().getOriginalPropertyValue(pname)+"#"+
-						c.getTarget().getOriginalPropertyValue(pname));
+				for(double theta=1; theta<=THETA_MAX; theta*=2)
+					testPassJoin(pname[i], theta);
+			
+				for(double theta=1; theta<=THETA_MAX; theta*=2)
+					testOurApproachFilter(pname[i], theta);
+	
+				notify(sys_out);
+				sys_out = "\n";
+				
 			}
+		}
+	}
+
+	private static void launchTests(String[] dataset, String[] pname) throws IOException {
+		
+		THETA_MAX = 5;
+		
+		for(int i=0; i<dataset.length; i++) {
+			loadKnowledgeBases(dataset[i], dataset[i]);
 			
-			TreeSet<Couple> oaf = testOurApproachFilter(pname, 1.0);
-			TreeSet<String> oafs = new TreeSet<String>();
-			for(Couple c : oaf) {
-//				System.out.println(c.getSource().getID()
-//						+ "\t" + c.getTarget().getID()
-//						+ "\t" + c.getSource().getOriginalPropertyValue(pname)
-//						+ "\t" + c.getTarget().getOriginalPropertyValue(pname)
-//						+ "\td = " + c.getDistances().get(0));
-				oafs.add(c.getSource().getOriginalPropertyValue(pname)+"#"+
-						c.getTarget().getOriginalPropertyValue(pname));
+			System.out.println(dataset[i]);
+			sys_out += dataset[i]+"\n";
+		
+//				TreeSet<String> pjs = null, oafs = null;
+
+			for(double theta=1; theta<=THETA_MAX; theta++) {
+				clearKnowledgeBases();
+//			    	TreeSet<Couple> pj = 
+					testPassJoin(pname[i], theta);
+//					pjs = new TreeSet<String>();
+//					for(Couple c : pj) {
+//		//				System.out.println(c.getSource().getID()
+//		//						+ "\t" + c.getTarget().getID()
+//		//						+ "\t" + c.getSource().getOriginalPropertyValue(pname)
+//		//						+ "\t" + c.getTarget().getOriginalPropertyValue(pname)
+//		//						+ "\td = " + c.getDistances().get(0));
+//						pjs.add(c.getSource().getOriginalPropertyValue(pname[i])+"#"+
+//								c.getTarget().getOriginalPropertyValue(pname[i]));
+//					}
+			}
+		
+			for(double theta=1; theta<=THETA_MAX; theta++) {
+				clearKnowledgeBases();
+//			    	TreeSet<Couple> oaf = 
+					testOurApproachFilter(pname[i], theta);
+//					oafs = new TreeSet<String>();
+//					for(Couple c : oaf) {
+//		//				System.out.println(c.getSource().getID()
+//		//						+ "\t" + c.getTarget().getID()
+//		//						+ "\t" + c.getSource().getOriginalPropertyValue(pname)
+//		//						+ "\t" + c.getTarget().getOriginalPropertyValue(pname)
+//		//						+ "\td = " + c.getDistances().get(0));
+//						oafs.add(c.getSource().getOriginalPropertyValue(pname[i])+"#"+
+//								c.getTarget().getOriginalPropertyValue(pname[i]));
+//					}
 			}
 
+//			crossValidate(pjs, oafs);
+
+
+
+//				for(double theta=1; theta<=THETA_MAX; theta++)
+//						testEdJoinOnce(pname[i], theta);
+			
+//			notify(sys_out);
+			sys_out = "\n";
+		}
+	}
+
+	private static void crossValidate(TreeSet<String> pjs, TreeSet<String> oafs) {
 			System.out.println("\nPJ but not OAF");
 			for(String s : pjs)
 				if(!oafs.contains(s))
@@ -329,13 +454,9 @@ public class Test {
 			for(String s : oafs)
 				if(!pjs.contains(s))
 					System.out.println(s);
+	}
 
-	//		testPassJoin("data/0-paper/sources.csv", "name");
-	//		testEDJoin("data/2-dblp-scholar/Scholar.csv", "title");
-	//		crossValidation("data/2-dblp-scholar/Scholar.csv", "title");
-			
-//			testQuadraticJoin(pname, 1.0);
-			
-		}
-
+	public static void append(String s) {
+		sys_out += s;
+	}
 }

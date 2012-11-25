@@ -12,6 +12,7 @@ import metriclearning.Couple;
 import metriclearning.Operation;
 import metriclearning.Resource;
 import similarities.WeightedEditDistanceExtended;
+import test.Test;
 import utility.OrderByLengthAndAlpha;
 
 
@@ -25,12 +26,8 @@ public class PassJoin extends StandardFilter {
 			String propertyName, double θ) {
 		
 		loadCaseWeights();
-		
-		weights.put("i,ε", 0.5);
-		weights.put("r,ε", 0.5);
-		weights.put("s,ε", 0.5);
-		weights.put("t,ε", 0.5);
-		
+		loadConfusionMatrix();
+				
 		int tau = (int) (θ / getMinWeight());
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
@@ -46,6 +43,8 @@ public class PassJoin extends StandardFilter {
 		InvertedIndex sourceIndex = buildInvertedIndex(sources, propertyName, tau);
 		int count = 0;
 
+	    long start = System.currentTimeMillis();
+		
 		for(Resource res : targets) {
 			String r = res.getPropertyValue(propertyName);
 			int rl = r.length();
@@ -79,7 +78,11 @@ public class PassJoin extends StandardFilter {
 				}
 			}
 		}
-		System.out.println("count = "+count);
+		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
+		System.out.print(compTime+"\t");
+		Test.append(compTime+"\t");
+		
+//		System.out.println("count = "+count);
 		return results;
 	}
 	

@@ -2,7 +2,8 @@ package utility;
 
 import java.util.Comparator;
 
-import metriclearning.Resource;
+import acids2.Resource;
+
 
 public class OrderByLengthAndAlpha implements Comparator<Resource> {
 	

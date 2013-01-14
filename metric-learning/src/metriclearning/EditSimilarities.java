@@ -43,17 +43,17 @@ public class EditSimilarities {
         return sOut;
     }
 
-    private static void countSub(int i, int j, int k, Couple c) {
+    private static void countSub(int i, int j, int k, Couple1 c) {
         count[charToPosition(source.charAt(i))][charToPosition(target.charAt(j))][k]++;
         c.count(charToPosition(source.charAt(i)), charToPosition(target.charAt(j)), k);
     }
     
-    private static void countDel(int i, int k, Couple c) {
+    private static void countDel(int i, int k, Couple1 c) {
         count[charToPosition(source.charAt(i))][EMPTY_STRING][k]++;
         c.count(charToPosition(source.charAt(i)), EMPTY_STRING, k);
     }
     
-    private static void countIns(int j, int k, Couple c) {
+    private static void countIns(int j, int k, Couple1 c) {
         count[EMPTY_STRING][charToPosition(target.charAt(j))][k]++;
         c.count(EMPTY_STRING, charToPosition(target.charAt(j)), k);
     }
@@ -176,7 +176,7 @@ public class EditSimilarities {
 //        String b = "Semantic Integration of Environmental Models for Application to Global Information Systems and Decision-Making";
         String a = "Democrat";
         String b = "Republican";
-        Couple c = new Couple(new Resource(a), new Resource(b));
+        Couple1 c = new Couple1(new Resource1(a), new Resource1(b));
         
 //        double d = getDijkstraSimilarity(a, b, 0, c);
         double d = getEditSimilarity(a, b, 0, c);
@@ -238,7 +238,7 @@ public class EditSimilarities {
         }
     }
     
-    public static double getEditSimilarity(String s, String t, int k, Couple c) {
+    public static double getEditSimilarity(String s, String t, int k, Couple1 c) {
         
         K = k;
         source = filter(s);

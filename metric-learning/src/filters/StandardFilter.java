@@ -18,7 +18,7 @@ public class StandardFilter {
 
 	protected static HashMap<String, Double> weights = new HashMap<String, Double>();
 	
-	protected static WeightedEditDistanceExtended wed = new WeightedEditDistanceExtended() {
+	public static WeightedEditDistanceExtended wed = new WeightedEditDistanceExtended() {
 		@Override
 		public double transposeWeight(char cFirst, char cSecond) {
 			return Double.POSITIVE_INFINITY;

@@ -2,26 +2,32 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package metriclearning;
+package acids2;
 
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
-import java.util.HashMap;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
+ * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
- * @author tom
  */
 public class Resource implements Comparable<Resource> {
     
     private String ID;
+    
+    public static final int DATATYPE_STRING = 1;
+    public static final int DATATYPE_NUMERIC = 2;
+    public static final int DATATYPE_DATE = 3;
+    
     /**
      * originalProperties include symbols.
      * properties are for weighted edit distance calculation.
      */
-    private HashMap<String, String> originalProperties = new HashMap<String, String>();
-    private HashMap<String, String> properties = new HashMap<String, String>();
+    private TreeMap<String, String> originalProperties = new TreeMap<String, String>();
+    private TreeMap<String, String> properties = new TreeMap<String, String>();
+    private TreeMap<String, Integer> datatypes = new TreeMap<String, Integer>();
 
     public Resource(String ID) {
         this.ID = ID;
@@ -43,10 +49,15 @@ public class Resource implements Comparable<Resource> {
         return properties.keySet();
     }
     
-    public void setPropertyValue(String p, String v) {
+    public void setPropertyValue(String p, String v, int datatype) {
         originalProperties.put(p, v);
         properties.put(p, normalize(v));
+        datatypes.put(p, datatype);
     }
+
+	public TreeMap<String, Integer> getDatatypes() {
+		return datatypes;
+	}
 
 	@Override
 	public int compareTo(Resource o) {

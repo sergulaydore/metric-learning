@@ -4,7 +4,8 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.TreeSet;
 
-import metriclearning.Resource;
+import acids2.Resource;
+
 
 /**
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>

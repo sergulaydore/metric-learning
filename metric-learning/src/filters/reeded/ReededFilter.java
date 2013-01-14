@@ -1,29 +1,27 @@
-package filters.ourapproach;
+package filters.reeded;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.Vector;
 
-import test.Test;
-
-import metriclearning.Couple;
-import metriclearning.Resource;
+import acids2.Couple;
+import acids2.Resource;
 import filters.StandardFilter;
+import filters.test.FiltersTest;
 
 /**
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class OurApproachFilter extends StandardFilter {
+public class ReededFilter extends StandardFilter {
 	
 	private static HashMap<Character, Double> f_insdel = new HashMap<Character, Double>();
 
 	private static HashMap<Character, Double> f_sub = new HashMap<Character, Double>();
 
-	public static TreeSet<Couple> ourApproachFilter(ArrayList<Resource> sources,
-			ArrayList<Resource> targets, String propertyName, double θ) {
+	public static TreeSet<Couple> filter(TreeSet<Resource> sources,
+			TreeSet<Resource> targets, String propertyName, double θ) {
 		
 		loadCaseWeights();
 		loadConfusionMatrix();
@@ -36,7 +34,7 @@ public class OurApproachFilter extends StandardFilter {
 		double tau = θ / mw;
 		
 		long start = System.currentTimeMillis();
-
+		
 		for(Resource s : sources) {
 			String sp = s.getPropertyValue(propertyName);
 			for(Resource t : targets) {
@@ -50,34 +48,9 @@ public class OurApproachFilter extends StandardFilter {
 						ct.add(tp.charAt(i));
 					Vector<Character> c = subtract(cs, ct);
 					c.addAll(subtract(ct, cs));
-//					Collections.sort(c);
-//					double minSub = 1.0, minInsdel = 1.0;
-//					for(char ch : c) {
-//						double w1 = f_sub.get(ch);
-//						if(w1 < minSub)
-//							minSub = w1;
-//						double w2 = f_insdel.get(ch);
-//						if(w2 < minInsdel)
-//							minInsdel = w2;
-//					}
-					
-//					String exclDisj = xor(sp, tp);
-					
-//					double minSub = 1.0;//, minInsdel = 1.0;
-//					for(int i=0; i<exclDisj.length(); i++) {
-//						char ch = exclDisj.charAt(i);
-//						double w1 = f_sub.get(ch);
-//						if(w1 < minSub)
-//							minSub = w1;
-////						double w2 = f_insdel.get(ch);
-////						if(w2 < minInsdel)
-////							minInsdel = w2;
-//					}
 					double minGap = (int)(c.size() / 2);// + (size % 2) * minInsdel;
 					if(minGap <= tau) {
-						/*
-						 *  Verification.
-						 */
+						//  Verification.
 						double d = wed.proximity(sp, tp);
 						if(d <= θ) {
 							Couple cpl = new Couple(s, t);
@@ -89,8 +62,8 @@ public class OurApproachFilter extends StandardFilter {
 			}
 		}
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.print(compTime+"\t");
-		Test.append(compTime+"\t");
+		System.out.println("REEDED: Join done in "+compTime+" seconds.");
+//		FiltersTest.append(compTime+"\t");
 		
 		return results;
 	}

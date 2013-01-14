@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package metriclearning;
+package acids2;
 
 import java.util.ArrayList;
 
@@ -27,17 +27,27 @@ public class Couple implements Comparable<Couple> {
     public static final int FP = 2;
     public static final int TN = 3;
     public static final int FN = 4;
-    private int classification;
+    private int type;
 
-    public int getClassification() {
-        return classification;
+    public int getType() {
+        return type;
     }
 
-    public void setClassification(int classification) {
-        this.classification = classification;
+    public void setType(int type) {
+        this.type = type;
     }
     
-    public void resetCount() {
+    private boolean positive;
+    
+    public boolean isPositive() {
+		return positive;
+	}
+
+	public void setPositive(boolean positive) {
+		this.positive = positive;
+	}
+
+	public void resetCount() {
 //        for(int i=0; i<count.length; i++)
 //            for(int j=0; j<count[i].length; j++)
 //                for(int k=0; k<count[i][j].length; k++)
@@ -63,6 +73,13 @@ public class Couple implements Comparable<Couple> {
         for(Double sim : similarities)
             sum += sim;
         return sum/similarities.size();
+    }
+
+    public double getMeanDist() {
+        double sum = 0.0;
+        for(Double sim : distances)
+            sum += sim;
+        return sum/distances.size();
     }
 
     public Resource getSource() {
@@ -133,5 +150,21 @@ public class Couple implements Comparable<Couple> {
         String c2 = c.getSource().getID()+"#"+c.getTarget().getID();
         return c1.compareTo(c2);
     }
+    
+    @Override
+    public String toString() {
+		return this.getSource().getID()+"#"+this.getTarget().getID();
+    }
 
+    @Override
+    public boolean equals(Object o) {
+    	if(!(o instanceof Couple))
+    		return false;
+    	else {
+    		Couple c = (Couple) o;
+            String c1 = this.getSource().getID()+"#"+this.getTarget().getID();
+            String c2 = c.getSource().getID()+"#"+c.getTarget().getID();
+            return c1.equals(c2);
+    	}
+    }
 }

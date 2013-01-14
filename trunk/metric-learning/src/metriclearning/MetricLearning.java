@@ -33,10 +33,10 @@ import org.math.array.LinearAlgebra;
 public class MetricLearning {
     
     // the source cache
-    static ArrayList<Resource> sources = new ArrayList<Resource>();
+    static ArrayList<Resource1> sources = new ArrayList<Resource1>();
     
     // the target cache
-    static ArrayList<Resource> targets = new ArrayList<Resource>();
+    static ArrayList<Resource1> targets = new ArrayList<Resource1>();
     
     // the source/target/oracle KB
     // The oracle's knowledge is a mapping among instances of source KB
@@ -48,22 +48,22 @@ public class MetricLearning {
     
     static String[] ignoredList = {"id", "ID"};
     
-    static ArrayList<Couple> oraclesAnswers = new ArrayList<Couple>();
+    static ArrayList<Couple1> oraclesAnswers = new ArrayList<Couple1>();
     
     // all elements in S×T then filtered by ED-Join
-    static LinkedList<Couple> couples = new LinkedList<Couple>();
+    static LinkedList<Couple1> couples = new LinkedList<Couple1>();
     
     // k = the size of the most informative examples sets
     static int MOSTINF_POS_CAND = 7;
     static int MOSTINF_NEG_CAND = 7;
     
-    static ArrayList<Couple> posSelected = new ArrayList<Couple>();
-    static ArrayList<Couple> negSelected = new ArrayList<Couple>();
+    static ArrayList<Couple1> posSelected = new ArrayList<Couple1>();
+    static ArrayList<Couple1> negSelected = new ArrayList<Couple1>();
     
-    static ArrayList<Couple> actualPos = new ArrayList<Couple>();
-    static ArrayList<Couple> actualNeg = new ArrayList<Couple>();
+    static ArrayList<Couple1> actualPos = new ArrayList<Couple1>();
+    static ArrayList<Couple1> actualNeg = new ArrayList<Couple1>();
     
-    static ArrayList<Couple> answered = new ArrayList<Couple>();
+    static ArrayList<Couple1> answered = new ArrayList<Couple1>();
     
     // the dimensions, ergo the number of similarities applied to the properties
     static int n;
@@ -165,7 +165,7 @@ public class MetricLearning {
 //        		couples.add(new Couple(s,t));
                 
         // compute the similarity
-        for(Couple c : couples)
+        for(Couple1 c : couples)
             computeSimilarity(c);
                 
         boolean goForTest = false;
@@ -180,7 +180,7 @@ public class MetricLearning {
                 // we shall remove all dupes.
                 checkDuplicates();
                 
-                for(Couple c : couples)
+                for(Couple1 c : couples)
                     computeSimilarity(c);
                 
             }
@@ -189,14 +189,14 @@ public class MetricLearning {
             negSelected.clear();
             
             // compute gamma and update the set of most informative examples
-            for(Couple c : couples) {
+            for(Couple1 c : couples) {
                 if(!hasBeenAnswered(c)) {
                     computeGamma(c);
                     updateSelected(c);
                 }
             }
 
-            ArrayList<Couple> selected = new ArrayList<Couple>();
+            ArrayList<Couple1> selected = new ArrayList<Couple1>();
             selected.addAll(posSelected);
             selected.addAll(negSelected);
 
@@ -224,11 +224,11 @@ public class MetricLearning {
                         computeM(k);
 
                 EditSimilarities.resetCount();
-                for(Couple c: couples)
+                for(Couple1 c: couples)
                     c.resetCount();
 
                 // compute the new similarity according with the updated weights
-                for(Couple c : couples) {
+                for(Couple1 c : couples) {
                     computeSimilarity(c);
                     System.out.print(".");
                 }
@@ -278,7 +278,7 @@ public class MetricLearning {
      * @param c the couple
      * @return true if positive, false if negative
      */
-    private static boolean classify(Couple c) {
+    private static boolean classify(Couple1 c) {
         ArrayList<Double> sim = c.getSimilarities();
         double sum = 0.0;
         for(int i=0; i<n; i++)
@@ -295,10 +295,10 @@ public class MetricLearning {
      * This function returns true iff the source and the target have been mapped
      * together, so iff the couple (s,t) is positive.
      */
-    private static boolean isPositive(Couple c) {
+    private static boolean isPositive(Couple1 c) {
         String s = c.getSource().getID();
         String t = c.getTarget().getID();
-        for(Couple pc : oraclesAnswers)
+        for(Couple1 pc : oraclesAnswers)
             if(pc.getSource().getID().equals(s) && pc.getTarget().getID().equals(t))
                 return true;
         return false;
@@ -309,7 +309,7 @@ public class MetricLearning {
         String [] titles = reader.readNext(); // gets the column titles
         String [] nextLine;
         while ((nextLine = reader.readNext()) != null) {
-            Resource r = new Resource(nextLine[0]);
+            Resource1 r = new Resource1(nextLine[0]);
             for(int i=0; i<nextLine.length; i++)
                 if(!isIgnored(titles[i].toLowerCase())) {
                     if(nextLine[i] != null)
@@ -324,7 +324,7 @@ public class MetricLearning {
         reader = new CSVReader(new FileReader(targetPath));
         titles = reader.readNext(); // gets the column titles
         while ((nextLine = reader.readNext()) != null) {
-            Resource r = new Resource(nextLine[0]);
+            Resource1 r = new Resource1(nextLine[0]);
             for(int i=0; i<nextLine.length; i++)
                 if(!isIgnored(titles[i].toLowerCase())) {
                     if(nextLine[i] != null)
@@ -349,8 +349,9 @@ public class MetricLearning {
         reader.readNext(); // skips the column titles
         String [] nextLine;
         while ((nextLine = reader.readNext()) != null) {
-            oraclesAnswers.add(new Couple(new Resource(nextLine[0]), new Resource(nextLine[1])));
+            oraclesAnswers.add(new Couple1(new Resource1(nextLine[0]), new Resource1(nextLine[1])));
         }
+        reader.close();
     }
 
 
@@ -502,9 +503,9 @@ public class MetricLearning {
         System.out.println(string);
     }
 
-    private static void computeSimilarity(Couple couple) {
-        Resource source = couple.getSource();
-        Resource target = couple.getTarget();
+    private static void computeSimilarity(Couple1 couple) {
+        Resource1 source = couple.getSource();
+        Resource1 target = couple.getTarget();
         
         // get couple similarities
         Set<String> propNames = source.getPropertyNames();
@@ -560,7 +561,7 @@ public class MetricLearning {
      * TODO normalize the gamma
      * @param c The couple.
      */
-    private static void computeGamma(Couple c) {
+    private static void computeGamma(Couple1 c) {
         ArrayList<Double> Q = c.getSimilarities();
         double numer = 0.0, denom = 0.0;
         for(int i=0; i<n; i++) {
@@ -576,15 +577,15 @@ public class MetricLearning {
      * Updates the positive and negative sets of best informative examples.
      * @param c 
      */
-    private static void updateSelected(Couple c) {
+    private static void updateSelected(Couple1 c) {
         if(classify(c)) {
             if(posSelected.size() < MOSTINF_POS_CAND) {
                 posSelected.add(c);
                 return;
             }
             double min = 99999;
-            Couple c_min = null;
-            for(Couple c1 : posSelected)
+            Couple1 c_min = null;
+            for(Couple1 c1 : posSelected)
                 if(c1.getGamma() < min) {
                     min = c1.getGamma();
                     c_min = c1;
@@ -599,8 +600,8 @@ public class MetricLearning {
                 return;
             }
             double min = 99999;
-            Couple c_min = null;
-            for(Couple c1 : negSelected)
+            Couple1 c_min = null;
+            for(Couple1 c1 : negSelected)
                 if(c1.getGamma() < min) {
                     min = c1.getGamma();
                     c_min = c1;
@@ -619,21 +620,21 @@ public class MetricLearning {
     private static double computeF1() {
         // compute the four categories
         tp = 0; fp = 0; tn = 0; fn = 0;
-        for(Couple c : actualPos)
+        for(Couple1 c : actualPos)
             if(classify(c)) {
                 tp ++;
-                c.setClassification(Couple.TP);
+                c.setClassification(Couple1.TP);
             } else {
                 fn ++;
-                c.setClassification(Couple.FN);
+                c.setClassification(Couple1.FN);
             }
-        for(Couple c : actualNeg)
+        for(Couple1 c : actualNeg)
             if(classify(c)) {
                 fp ++;
-                c.setClassification(Couple.FP);
+                c.setClassification(Couple1.FP);
             } else {
                 tn ++;
-                c.setClassification(Couple.TN);
+                c.setClassification(Couple1.TN);
             }
 
         // compute f1
@@ -654,13 +655,13 @@ public class MetricLearning {
             countSumFalsePos[i] = 0;
             countSumFalseNeg[i] = 0;
         }
-        for(Couple c : couples) {
-            if(c.getClassification() == Couple.FP) {
+        for(Couple1 c : couples) {
+            if(c.getClassification() == Couple1.FP) {
                 int[] cArr = c.getCountMatrixAsArray(k);
                 for(int i=0; i<len; i++)
                     countSumFalsePos[i] += cArr[i];
             }
-            if(c.getClassification() == Couple.FN) {
+            if(c.getClassification() == Couple1.FN) {
                 int[] cArr = c.getCountMatrixAsArray(k);
                 for(int i=0; i<len; i++)
                     countSumFalseNeg[i] += cArr[i];
@@ -700,7 +701,7 @@ public class MetricLearning {
     private static boolean isLinearlySeparable(int k) {
         double highestNeg = 0.0;
         double lowestPos = 1.0;
-        for(Couple c : couples) {
+        for(Couple1 c : couples) {
             ArrayList<Double> sims = c.getSimilarities();
                 Double sim = sims.get(k);
                 if(isInSet(c, actualPos)) {
@@ -734,7 +735,7 @@ public class MetricLearning {
             highestNeg[s] = 0.0;
             lowestPos[s] = 1.0;
         }
-        for(Couple c : couples) {
+        for(Couple1 c : couples) {
             ArrayList<Double> sims = c.getSimilarities();
             for(int s=0; s<sims.size(); s++) {
                 Double sim = sims.get(s);
@@ -763,22 +764,22 @@ public class MetricLearning {
         return separable;
     }
 
-    private static TreeSet<Couple> edjToCouples(TreeSet<String> edjoined) {
-        TreeSet<Couple> cpls = new TreeSet<Couple>();
+    private static TreeSet<Couple1> edjToCouples(TreeSet<String> edjoined) {
+        TreeSet<Couple1> cpls = new TreeSet<Couple1>();
         for(String edj : edjoined) {
             String[] ed = edj.split("#");
-            Resource r1 = null, r2 = null;
-            for(Resource s : sources)
+            Resource1 r1 = null, r2 = null;
+            for(Resource1 s : sources)
                 if(ed[0].equals(s.getID())) {
                     r1 = s;
                     break;
                 }
-            for(Resource t : targets)
+            for(Resource1 t : targets)
                 if(ed[1].equals(t.getID())) {
                     r2 = t;
                     break;
                 }
-            cpls.add(new Couple(r1, r2));
+            cpls.add(new Couple1(r1, r2));
         }
         return cpls;
     }
@@ -794,16 +795,16 @@ public class MetricLearning {
             System.out.print(".");
             
             double theta_generic = bias;
-            Resource first = sources.get(0);
+            Resource1 first = sources.get(0);
             int propIter = 0;
             TreeSet<String> intersection = new TreeSet<String>();
             
             for(String p : first.getPropertyNames()) {
                 TreeSet<Entry> sTree = new TreeSet<Entry>();
-                for(Resource s : sources)
+                for(Resource1 s : sources)
                     sTree.add(new Entry(s.getID(), s.getPropertyValue(p)));
                 TreeSet<Entry> tTree = new TreeSet<Entry>();
-                for(Resource t : targets)
+                for(Resource1 t : targets)
                     tTree.add(new Entry(t.getID(), t.getPropertyValue(p)));
 
                 // theta & the similarity range (that's not mandatory but useful)
@@ -859,7 +860,7 @@ public class MetricLearning {
             
             int maybePos = 0, maybeNeg = 0;
             for(String s : intersection) {
-                Couple c = buildCouple(s);
+                Couple1 c = buildCouple(s);
                 if(classify(c))
                     maybePos++;
                 else
@@ -878,11 +879,11 @@ public class MetricLearning {
 
 
     private static void checkDuplicates() {
-        ArrayList<Couple> toRemove = new ArrayList<Couple>();
+        ArrayList<Couple1> toRemove = new ArrayList<Couple1>();
         for(int i=0; i<couples.size(); i++) {
-            Couple ci = couples.get(i);
+            Couple1 ci = couples.get(i);
             for(int j=0; j<i; j++) {
-                Couple cj = couples.get(j);
+                Couple1 cj = couples.get(j);
                 if(ci.getSource().getID().equals(cj.getSource().getID()) &&
                         ci.getTarget().getID().equals(cj.getTarget().getID())) {
 //                    w("*** duplicate found ***\t"+cj.getSource().getID()+"#"+cj.getTarget().getID());
@@ -890,12 +891,12 @@ public class MetricLearning {
                 }
             }
         }
-        for(Couple c : toRemove)
+        for(Couple1 c : toRemove)
             couples.remove(c);
     }
 
-    private static boolean hasBeenAnswered(Couple c) {
-        for(Couple a : answered) {
+    private static boolean hasBeenAnswered(Couple1 c) {
+        for(Couple1 a : answered) {
             if(a.getSource().getID().equals(c.getSource().getID()) &&
                     a.getTarget().getID().equals(c.getTarget().getID()))
                 return true;
@@ -904,12 +905,12 @@ public class MetricLearning {
     }
 
     private static void showCouples() {
-        for(Couple c : couples) {
-            Resource s = c.getSource();
+        for(Couple1 c : couples) {
+            Resource1 s = c.getSource();
             w(s.getID());
             for(String p : s.getPropertyNames())
                 w("\t"+s.getPropertyValue(p));
-            Resource t = c.getTarget();
+            Resource1 t = c.getTarget();
             w(t.getID());
             for(String p : t.getPropertyNames())
                 w("\t"+t.getPropertyValue(p));
@@ -938,9 +939,9 @@ public class MetricLearning {
             }
         
         int size = sources.size()*targets.size();
-        for(Resource s : sources) {
-            for(Resource t : targets) {
-                Couple c = new Couple(s, t);
+        for(Resource1 s : sources) {
+            for(Resource1 t : targets) {
+                Couple1 c = new Couple1(s, t);
                 computeSimilarity(c);
                 if(isPositive(c)) {
                     if(classify(c)) {
@@ -1011,8 +1012,8 @@ public class MetricLearning {
                     
         final int NUM = 100;
         for(int i=0; i<NUM && i<oraclesAnswers.size(); i++) {
-            Couple c = oraclesAnswers.get((oraclesAnswers.size()/NUM)*i);
-            for(Resource s : sources) {
+            Couple1 c = oraclesAnswers.get((oraclesAnswers.size()/NUM)*i);
+            for(Resource1 s : sources) {
                 if(c.getSource().getID().equals(s.getID())) {
                     src += "\""+s.getID()+"\"";
                     for(String p : s.getPropertyNames())
@@ -1021,7 +1022,7 @@ public class MetricLearning {
                     break;
                 }
             }
-            for(Resource t : targets) {
+            for(Resource1 t : targets) {
                 if(c.getTarget().getID().equals(t.getID())) {
                     tgt += "\""+t.getID()+"\"";
                     for(String p : t.getPropertyNames())
@@ -1131,8 +1132,8 @@ public class MetricLearning {
         }
     }
     
-    private static boolean isInSet(Couple c, ArrayList<Couple> set) {
-        for(Couple p : set)
+    private static boolean isInSet(Couple1 c, ArrayList<Couple1> set) {
+        for(Couple1 p : set)
             if(p.getSource().getID().equals(c.getSource().getID()) &&
                     p.getTarget().getID().equals(c.getTarget().getID()))
                     return true;
@@ -1151,20 +1152,20 @@ public class MetricLearning {
         return 1.0 + wpe * (max_q / min_q - 1.0);
     }
 
-    private static Couple buildCouple(String str) {
+    private static Couple1 buildCouple(String str) {
         String[] ids = str.split("#");
-        Resource r1 = null, r2 = null;
-        for(Resource s : sources)
+        Resource1 r1 = null, r2 = null;
+        for(Resource1 s : sources)
             if(ids[0].equals(s.getID())) {
                 r1 = s;
                 break;
             }
-        for(Resource t : targets)
+        for(Resource1 t : targets)
             if(ids[1].equals(t.getID())) {
                 r2 = t;
                 break;
             }
-        Couple c = new Couple(r1, r2);
+        Couple1 c = new Couple1(r1, r2);
         computeSimilarity(c);
         return c;
     }
@@ -1182,9 +1183,9 @@ public class MetricLearning {
             Notifier.notify(f1, pre, rec, tp, fp, tn, fn, part);
     }
 
-    private static void askOracle(ArrayList<Couple> selected) {
+    private static void askOracle(ArrayList<Couple1> selected) {
         for(int i=0; i<selected.size(); i++) {
-            Couple couple = selected.get(i);
+            Couple1 couple = selected.get(i);
             if( isPositive( couple ) ) {
                 actualPos.add( couple );
             } else {
@@ -1200,15 +1201,15 @@ public class MetricLearning {
             while(actualPos.isEmpty()) {
                 // generates a fake positive example
                 // TODO ask for some c=(s,t) with sim(c) > 0.8 or so
-                Resource s = new Resource("GeneratedPositiveSourceExample");
-                Resource t = new Resource("GeneratedPositiveTargetExample");
+                Resource1 s = new Resource1("GeneratedPositiveSourceExample");
+                Resource1 t = new Resource1("GeneratedPositiveTargetExample");
                 sources.add(s);
                 targets.add(t);
                 for(String p : sources.get(0).getPropertyNames()) {
                     s.setPropertyValue(p, "GeneratedValue");
                     t.setPropertyValue(p, "GeneratedValue");
                 }
-                Couple c = new Couple(s, t);
+                Couple1 c = new Couple1(s, t);
                 computeSimilarity(c);
                 couples.add(c);
                 actualPos.add(c);
@@ -1217,9 +1218,9 @@ public class MetricLearning {
             }
         }
         if(actualNeg.isEmpty()) {
-            ArrayList<Couple> added = new ArrayList<Couple>();
+            ArrayList<Couple1> added = new ArrayList<Couple1>();
             while(actualNeg.size() < MOSTINF_NEG_CAND) {
-                Couple c = new Couple(sources.get((int)Math.random()*sources.size()),
+                Couple1 c = new Couple1(sources.get((int)Math.random()*sources.size()),
                         targets.get((int)(Math.random()*targets.size())));
                 computeSimilarity(c);
                 if(!isPositive(c) && !added.contains(c)) {

@@ -6,13 +6,13 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.TreeSet;
 
-import filters.StandardFilter;
+import acids2.Couple;
+import acids2.Resource;
 
-import metriclearning.Couple;
-import metriclearning.Operation;
-import metriclearning.Resource;
+import filters.StandardFilter;
+import filters.test.FiltersTest;
+
 import similarities.WeightedEditDistanceExtended;
-import test.Test;
 import utility.OrderByLengthAndAlpha;
 
 
@@ -80,7 +80,7 @@ public class PassJoin extends StandardFilter {
 		}
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 		System.out.print(compTime+"\t");
-		Test.append(compTime+"\t");
+		FiltersTest.append(compTime+"\t");
 		
 //		System.out.println("count = "+count);
 		return results;

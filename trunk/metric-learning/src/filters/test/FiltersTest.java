@@ -1,40 +1,31 @@
-package test;
+package filters.test;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.ObjectInputStream.GetField;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.NavigableSet;
-import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.Vector;
 
-import com.aliasi.spell.WeightedEditDistance;
-
-import metriclearning.Couple;
-import metriclearning.Resource;
 import similarities.WeightedEditDistanceExtended;
 import utility.SystemOutHandler;
+import acids2.Couple;
+import acids2.Resource;
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
 import au.com.bytecode.opencsv.CSVReader;
 import filters.edjoin.EdJoinFilter;
-import filters.ourapproach.OurApproachFilter;
 import filters.passjoin.PassJoin;
+import filters.reeded.ReededFilter;
 
 
-public class Test {
+public class FiltersTest {
 
-	private static ArrayList<Resource> sources = new ArrayList<Resource>();
-	private static ArrayList<Resource> targets = new ArrayList<Resource>();
+	private static TreeSet<Resource> sources = new TreeSet<Resource>();
+	private static TreeSet<Resource> targets = new TreeSet<Resource>();
 	
 	private static String sys_out = "\n";
 	private static double THETA_MAX;
@@ -64,9 +55,9 @@ public class Test {
             for(int i=0; i<nextLine.length; i++)
                 if(!isIgnored(titles[i].toLowerCase(), ignoredList)) {
                     if(nextLine[i] != null)
-                        r.setPropertyValue(titles[i], nextLine[i]);
+                        r.setPropertyValue(titles[i], nextLine[i], Resource.DATATYPE_STRING);
                     else
-                        r.setPropertyValue(titles[i], "");
+                        r.setPropertyValue(titles[i], "", Resource.DATATYPE_STRING);
                 }
             sources.add(r);
             if(++count >= endOffset)
@@ -83,9 +74,9 @@ public class Test {
             for(int i=0; i<nextLine.length; i++)
                 if(!isIgnored(titles[i].toLowerCase(), ignoredList)) {
                     if(nextLine[i] != null)
-                        r.setPropertyValue(titles[i], nextLine[i]);
+                        r.setPropertyValue(titles[i], nextLine[i], Resource.DATATYPE_STRING);
                     else
-                        r.setPropertyValue(titles[i], "");
+                        r.setPropertyValue(titles[i], "", Resource.DATATYPE_STRING);
                 }
             targets.add(r);
             if(++count >= endOffset)
@@ -113,7 +104,8 @@ public class Test {
 	
 			long start = System.currentTimeMillis();
 			
-			passjResults = PassJoin.passJoin(sources, targets, propertyName, θ);
+			passjResults = PassJoin.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
+					propertyName, θ);
 			
 			double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 			System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
@@ -204,7 +196,8 @@ public class Test {
 	    
 		long start = System.currentTimeMillis();
 		
-		passjResults = PassJoin.passJoin(sources, targets, propertyName, θ);
+		passjResults = PassJoin.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
+				propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
@@ -220,7 +213,7 @@ public class Test {
 	    
 	    long start = System.currentTimeMillis();
 		
-		oafResults = OurApproachFilter.ourApproachFilter(sources, targets, propertyName, θ);
+		oafResults = ReededFilter.filter(sources, targets, propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 //		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+oafResults.size());
@@ -237,8 +230,9 @@ public class Test {
 	    TreeSet<Couple> passjResults = null;
 	    
 	    long start = System.currentTimeMillis();
-		
-		passjResults = PassJoin.passJoin(sources, targets, propertyName, θ);
+	    
+		passjResults = PassJoin.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
+				propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 //		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
@@ -375,8 +369,8 @@ public class Test {
 				System.out.println(dataset[i]+" ("+sources.size()+")");
 				sys_out += dataset[i]+" ("+sources.size()+")\n";
 			
-				for(double theta=1; theta<=THETA_MAX; theta*=2)
-					testPassJoin(pname[i], theta);
+//				for(double theta=1; theta<=THETA_MAX; theta*=2)
+//					testPassJoin(pname[i], theta);
 			
 				for(double theta=1; theta<=THETA_MAX; theta*=2)
 					testOurApproachFilter(pname[i], theta);
@@ -390,9 +384,10 @@ public class Test {
 
 	private static void launchTests(String[] dataset, String[] pname) throws IOException {
 		
-		THETA_MAX = 5;
+		THETA_MAX = 2;
 		
 		for(int i=0; i<dataset.length; i++) {
+			clearKnowledgeBases();
 			loadKnowledgeBases(dataset[i], dataset[i]);
 			
 			System.out.println(dataset[i]);
@@ -401,7 +396,6 @@ public class Test {
 //				TreeSet<String> pjs = null, oafs = null;
 
 			for(double theta=1; theta<=THETA_MAX; theta++) {
-				clearKnowledgeBases();
 //			    	TreeSet<Couple> pj = 
 					testPassJoin(pname[i], theta);
 //					pjs = new TreeSet<String>();
@@ -417,7 +411,6 @@ public class Test {
 			}
 		
 			for(double theta=1; theta<=THETA_MAX; theta++) {
-				clearKnowledgeBases();
 //			    	TreeSet<Couple> oaf = 
 					testOurApproachFilter(pname[i], theta);
 //					oafs = new TreeSet<String>();

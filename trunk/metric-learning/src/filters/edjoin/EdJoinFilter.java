@@ -3,17 +3,17 @@ package filters.edjoin;
 import java.util.ArrayList;
 import java.util.TreeSet;
 
-import metriclearning.Resource;
-import test.Test;
 import utility.SystemOutHandler;
+import acids2.Resource;
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
 import filters.StandardFilter;
+import filters.test.FiltersTest;
 
 public class EdJoinFilter extends StandardFilter {
 
-	public static TreeSet<String> edJoinFilter(ArrayList<Resource> sources,
-			ArrayList<Resource> targets, String propertyName, double θ) {
+	public static TreeSet<String> edJoinFilter(TreeSet<Resource> sources,
+			TreeSet<Resource> targets, String propertyName, double θ) {
 		
 		loadCaseWeights();
 		loadConfusionMatrix();
@@ -37,7 +37,7 @@ public class EdJoinFilter extends StandardFilter {
         
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 		System.out.print(compTime+"\t");
-		Test.append(compTime+"\t");
+		FiltersTest.append(compTime+"\t");
 		
 //		System.out.println("count = "+count);
 		return results;

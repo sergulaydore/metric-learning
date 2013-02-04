@@ -109,6 +109,10 @@ public class Couple implements Comparable<Couple> {
         similarities.add(s);
         distances.add(d);
     }
+    
+    public void setDistance(double d, int pos) {
+    	distances.set(pos, d);
+    }
 
     public Couple(Resource source, Resource target) {
         this.source = source;

@@ -10,7 +10,8 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.TreeSet;
 
-import similarities.WeightedEditDistanceExtended;
+import distances.WeightedEditDistanceExtended;
+
 import utility.SystemOutHandler;
 import acids2.Couple;
 import acids2.Resource;
@@ -55,9 +56,9 @@ public class FiltersTest {
             for(int i=0; i<nextLine.length; i++)
                 if(!isIgnored(titles[i].toLowerCase(), ignoredList)) {
                     if(nextLine[i] != null)
-                        r.setPropertyValue(titles[i], nextLine[i], Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], nextLine[i]);
                     else
-                        r.setPropertyValue(titles[i], "", Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], "");
                 }
             sources.add(r);
             if(++count >= endOffset)
@@ -74,9 +75,9 @@ public class FiltersTest {
             for(int i=0; i<nextLine.length; i++)
                 if(!isIgnored(titles[i].toLowerCase(), ignoredList)) {
                     if(nextLine[i] != null)
-                        r.setPropertyValue(titles[i], nextLine[i], Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], nextLine[i]);
                     else
-                        r.setPropertyValue(titles[i], "", Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], "");
                 }
             targets.add(r);
             if(++count >= endOffset)
@@ -100,11 +101,13 @@ public class FiltersTest {
 
 	    TreeSet<Couple> passjResults = null;
 	    
+	    PassJoin pj = new PassJoin();
+	    
 		for(int θ=0; θ<=5; θ++) {
 	
 			long start = System.currentTimeMillis();
 			
-			passjResults = PassJoin.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
+			passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
 					propertyName, θ);
 			
 			double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
@@ -177,7 +180,8 @@ public class FiltersTest {
 		
 		TreeSet<String> edjResults = null;
 		
-		edjResults = EdJoinFilter.edJoinFilter(sources, targets, propertyName, θ);
+		EdJoinFilter ed = new EdJoinFilter();
+		edjResults = ed.edJoinFilter(sources, targets, propertyName, θ);
 		
         long now = System.currentTimeMillis();
 		double compTime = (double)(now-start)/1000.0;
@@ -196,7 +200,8 @@ public class FiltersTest {
 	    
 		long start = System.currentTimeMillis();
 		
-		passjResults = PassJoin.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
+		PassJoin pj = new PassJoin();
+		passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
 				propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
@@ -213,7 +218,8 @@ public class FiltersTest {
 	    
 	    long start = System.currentTimeMillis();
 		
-		oafResults = ReededFilter.filter(sources, targets, propertyName, θ);
+	    ReededFilter rf = new ReededFilter();
+		oafResults = rf.filter(sources, targets, propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 //		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+oafResults.size());
@@ -231,7 +237,8 @@ public class FiltersTest {
 	    
 	    long start = System.currentTimeMillis();
 	    
-		passjResults = PassJoin.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
+	    PassJoin pj = new PassJoin();
+		passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
 				propertyName, θ);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;

@@ -3,7 +3,6 @@ package acids2.test;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.TreeSet;
 
 import acids2.MainAlgorithm;
@@ -27,7 +26,7 @@ public class Test {
 	 */
 	public static void main(String[] args) throws IOException {
 		
-		String datasetPath = "1-dblp-acm"; // TODO args[0];
+		String datasetPath = "4-abt-buy"; // TODO args[0];
 		
 		String sourcePath = "data/" + datasetPath + "/sources.csv";
 		String targetPath = "data/" + datasetPath + "/targets.csv";
@@ -54,14 +53,14 @@ public class Test {
         int count = 0;
         while ((nextLine = reader.readNext()) != null) {
             Resource r = new Resource(nextLine[0]);
-            for(int i=0; i<nextLine.length; i++)
+            for(int i=0; i<nextLine.length; i++) {
                 if(!ignoredList.contains( titles[i].toLowerCase() )) {
-                	// TODO treat each kind of datatype.
                     if(nextLine[i] != null)
-                        r.setPropertyValue(titles[i], nextLine[i], Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], nextLine[i]);
                     else
-                        r.setPropertyValue(titles[i], "", Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], "");
                 }
+            }
             sources.add(r);
             if(++count >= endOffset)
             	break;
@@ -77,9 +76,9 @@ public class Test {
             for(int i=0; i<nextLine.length; i++)
                 if(!ignoredList.contains( titles[i].toLowerCase() )) {
                     if(nextLine[i] != null)
-                        r.setPropertyValue(titles[i], nextLine[i], Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], nextLine[i]);
                     else
-                        r.setPropertyValue(titles[i], "", Resource.DATATYPE_STRING);
+                        r.setPropertyValue(titles[i], "");
                 }
             targets.add(r);
             if(++count >= endOffset)
@@ -91,7 +90,11 @@ public class Test {
 
 	private static ArrayList<String> oraclesAnswers = new ArrayList<String>();
 	
-    private static void loadMappings(String mappingPath) throws IOException {
+    public static ArrayList<String> getOraclesAnswers() {
+		return oraclesAnswers;
+	}
+
+	private static void loadMappings(String mappingPath) throws IOException {
         CSVReader reader = new CSVReader(new FileReader(mappingPath));
         reader.readNext(); // skips the column titles
         String [] nextLine;
@@ -104,5 +107,6 @@ public class Test {
 	public static boolean askOracle(String ids) {
 		return oraclesAnswers.contains(ids);
 	}
+	
 
 }

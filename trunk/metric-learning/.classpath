@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="src" path="src"/>
+	<classpathentry excluding="similarities/" kind="src" path="src"/>
 	<classpathentry kind="lib" path="lib/commons-math-2.2.jar"/>
 	<classpathentry kind="lib" path="lib/EdJoinPlus.jar"/>
 	<classpathentry kind="lib" path="lib/jmatharray.jar"/>
 	<classpathentry kind="lib" path="lib/libsvm.jar"/>
 	<classpathentry kind="lib" path="lib/lingpipe-4.1.0.jar"/>
 	<classpathentry kind="lib" path="lib/opencsv-2.3.jar"/>
+	<classpathentry kind="lib" path="lib/plot/gluegen-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/plot/gluegen.jar"/>
+	<classpathentry kind="lib" path="lib/plot/jogl-all-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/plot/opencsv-2.1.jar"/>
+	<classpathentry kind="lib" path="lib/plot/org.convexhull.jar"/>
+	<classpathentry kind="lib" path="lib/plot/org.jzy3d-0.9.jar"/>
+	<classpathentry kind="lib" path="lib/plot/swt-debug.jar"/>
+	<classpathentry kind="lib" path="lib/plot/swt.jar"/>
+	<classpathentry kind="lib" path="lib/plot/jogl-all.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6">
 		<attributes>
 			<attribute name="owner.project.facets" value="java"/>

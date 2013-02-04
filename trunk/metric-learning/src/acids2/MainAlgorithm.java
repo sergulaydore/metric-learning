@@ -1,93 +1,127 @@
 package acids2;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.TreeSet;
-
-import org.math.array.LinearAlgebra;
-
-import utility.GammaComparator;
-
-import com.aliasi.util.CollectionUtils;
 
 import libsvm.svm;
 import libsvm.svm_model;
 import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
-import metriclearning.Couple1;
 
+import org.math.array.LinearAlgebra;
+
+import utility.GammaComparator;
+import utility.Transform;
+import acids2.plot.Svm3D;
 import acids2.test.Test;
 import filters.StandardFilter;
+import filters.WeightedEditDistanceFilter;
 import filters.mahalanobis.MahalaFilter;
 import filters.reeded.ReededFilter;
 
-// XXX Should we really keep on working on distances, while everybody is working on similarities?
-// Placing the correct initial classifier seems to be a tough task on distances.
-
+/**
+ * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
+ *
+ */
 public class MainAlgorithm {
 	
 	// SVM parameters
 	private static svm_model model;
-	private static int KERNEL = svm_parameter.LINEAR;
+	private static svm_problem problem;
+	private static int KERNEL = svm_parameter.POLY;
 	private static int DEGREE = 2;
-	private static int COEF0 = 1;
+	private static int COEF0 = 0;
 	
+	// classifier properties
+	private static double[][] sv_d;
 	private static double[] w;
-	private static double theta = 3.0; // TODO what's the "correct" theta???
-	private static double beta = 0.5;
-	private static int k = 5;
-	private static int n = 0;
+	private static double theta0;
+	private static double theta;
+	private static double beta = 1.0;
+
+	private static int k = 20;
+	private static int n;
 	
+	// support variables
+	private static int TOTAL_MAX_QUESTIONS = 50; // TODO
 	private static int counter = 0; // TODO remove me after linking class to a real oracle
+	private static double tp0 = 0, tn0 = 0, fp0 = 0, fn0 = 0;
+	private static svm_node[][] orig_x; 
+
+	private static ArrayList<Property> props = new ArrayList<Property>();
 	
+	/*
+	 * TODO
+	 * - Work with distances. Why? Because we can (almost) always discard a lot of examples.
+	 * - Weight matrix update.
+	 */
 	public static void start(TreeSet<Resource> sources, TreeSet<Resource> targets) {
 		
-		// initialization start
+		// initialization
 		
-		String[] propertyNames = new String[0];
+		ArrayList<String> propertyNames;
 		try {
-			propertyNames = sources.first().getPropertyNames().toArray(propertyNames);
+			propertyNames = sources.first().getPropertyNames();
 		} catch (NoSuchElementException e) {
 			System.err.println("Source set is empty!");
 			return;
 		}
 		
-		n = propertyNames.length;
+		for(String pn : propertyNames) {
+			int cnt = 0, type = Property.TYPE_NUMERIC;
+			for(Resource s : sources) {
+				if(s.checkDatatype(pn) == Property.TYPE_STRING) {
+					type = Property.TYPE_STRING;
+					break;
+				}
+				cnt++;
+				if(cnt == 10) {
+					type = Property.TYPE_NUMERIC;
+					break;
+				}
+			}
+			props.add(new Property(pn, type));
+		}
+		
+		for(Property p : props)
+			System.out.println(p.getName()+"\t"+p.getDatatype());
+		
+		n = propertyNames.size();
 		w = new double[n];
 		for(int i=0; i<n; i++)
 			w[i] = 1.0;
+		theta0 = (double) n / 2.0;
+		theta = theta0;
 		
-		// initialization end
+		// XXX Group all numeric values together and compute them at the end (?)
+		//   MahalaFilter should be called 0 or 1 time outside the for(i=0 to n).
+		
+		// algorithm
 		
 		TreeSet<Couple> intersection = new TreeSet<Couple>();
 		while(true) {
 			intersection.clear();
-			for(int i=0; i<n; i++) {
-				String pname = propertyNames[i];
+			// first property works on the entire Cartesian product.
+			Property p0 = props.get(0);
+			String pname0 = p0.getName();
+			System.out.println("Processing property: "+pname0);
+			double thr_0 = computeThreshold(0);
+			System.out.println("thr_0 = "+thr_0);
+			intersection = p0.getFilter().filter(sources, targets, pname0, thr_0);
+			System.out.println("intersection size: "+intersection.size());
+		
+			for(int i=1; i<n; i++) {
+				String pname = propertyNames.get(i);
 				System.out.println("Processing property: "+pname);
-				/*
-				 * TODO
-				 * - integrate svm
-				 * - weight update
-				 */
-				TreeSet<Couple> join;
-				double theta_i = (theta + beta) / w[i];
-				System.out.println("theta_i = "+theta_i+"\tbeta = "+beta);
-				// TODO datatype check.
-				// TODO group all numeric values together and compute them at the end.
-				if(i<2)
-					join = ReededFilter.filter(sources, targets, pname, theta_i);
-				else
-					join = MahalaFilter.filter(intersection, pname, theta_i);
-				
-				if(i==0)
-					intersection.addAll(join);
-				else
-					merge(intersection, join);
+				double thr_i = computeThreshold(i);
+				System.out.println("thr_"+i+" = "+thr_i);
+				TreeSet<Couple> join = props.get(i).getFilter().filter(intersection, pname, thr_i);
+				merge(intersection, join);
 				System.out.println("intersection size: "+intersection.size());
 			}
 			if(blockingEndCondition(intersection))
@@ -97,35 +131,43 @@ public class MainAlgorithm {
 				System.out.println("broadening... beta = "+beta);
 			}
 		}
-		
+		/*
+		 * TODO & FIXME Classifiers are still awful.
+		 * 
+		 * Since the lowest values of gamma tend to select the "weirdest" points,
+		 * such as positives having x,y distances greater than the negatives,
+		 * I'd suggest to select k more points with the lowest cumulative distance
+		 * (likely positives) and k with the highest (likely negatives).
+		 */
 		ArrayList<Couple> posInformative = new ArrayList<Couple>();
 		ArrayList<Couple> negInformative = new ArrayList<Couple>();
 		for(Couple c : intersection)
 			if(isInformative(c)) {
 				double gamma = computeGamma(c.getDistances());
-		        c.setGamma(gamma); // XXX do we really need this?
-				if(c.isPositive())
+		        c.setGamma(gamma);
+				if(c.isPositive()) {
 					posInformative.add(c);
-				else
+				} else
 					negInformative.add(c);
 			}
 		
-		// TODO check if pos/negInformative are empty...
+		// TODO check if pos/negInformative cardinality is < k...
+		// insert the code above into the blockingEndCondition (and if |·|<k then move theta)
 		
 		Collections.sort(posInformative, new GammaComparator());
 		Collections.sort(negInformative, new GammaComparator());
-		
+				
 		TreeSet<Couple> posMostInformative = new TreeSet<Couple>();
 		TreeSet<Couple> negMostInformative = new TreeSet<Couple>();
 		for(int i=0; i<k; i++) {
 			Couple c1 = posInformative.get(i);
 			posMostInformative.add(c1);
-			System.out.println("P: "+c1+" -> "+c1.getMeanDist()+" -> "+c1.getGamma());
+//			System.out.println("Pos? "+c1+" -> "+c1.getMeanDist()+" -> "+c1.getGamma());
 			Couple c2 = negInformative.get(i);
 			negMostInformative.add(c2);
-			System.out.println("N: "+c2+" -> "+c2.getMeanDist()+" -> "+c2.getGamma());
+//			System.out.println("Neg? "+c2+" -> "+c2.getMeanDist()+" -> "+c2.getGamma());
 		}
-		
+				
 		ArrayList<Couple> poslbl = new ArrayList<Couple>();
 		ArrayList<Couple> neglbl = new ArrayList<Couple>();
 		for(Couple c : posMostInformative)
@@ -138,48 +180,87 @@ public class MainAlgorithm {
 				poslbl.add(c);
 			else
 				neglbl.add(c);
-		
-		// search for one more pos/neg example if the set is empty
-		if(poslbl.size() == 0)
+
+		// search for one more pos/neg example if they're < k
+		if(poslbl.size() < k)
 			for(Couple c : posInformative)
 				if(!posMostInformative.contains(c))
 					if(askOracle(c) == true) {
 						poslbl.add(c);
-						break;
-					}
-		// if(poslbl.size() == 0)
-		// 		repeat everything with a lower theta...
-		if(neglbl.size() == 0)
+						if(poslbl.size() == k)
+							break;
+					} else neglbl.add(c);
+		if(poslbl.size() < k) { // TODO repeat everything...
+			System.out.println(poslbl.size()+" pos labeled. Broadening beta...");
+			beta += 0.5;
+			props.clear(); // TODO find a more elegant way.
+			start(sources, targets);
+			return;
+		}
+		if(neglbl.size() < k)
 			for(Couple c : negInformative)
 				if(!negMostInformative.contains(c))
 					if(askOracle(c) == false) {
 						neglbl.add(c);
-						break;
-					}
-		// if(neglbl.size() == 0)
-		// 		repeat everything with a higher theta...
+						if(neglbl.size() == k)
+							break;
+					} else poslbl.add(c);
+		if(neglbl.size() < k) { // TODO repeat everything...
+			System.out.println(neglbl.size()+" neg labeled. Broadening beta...");
+			beta += 0.5;
+			props.clear();
+			start(sources, targets);
+			return;
+		}
+		
+		normalizeNumValues(poslbl, neglbl);
+		
+		System.out.println("Pos Labeled:");
+		for(Couple c:poslbl) { 
+			for(double d : c.getDistances())
+				System.out.print(d+", ");
+			System.out.println("\t"+c);
+		}
+		System.out.println("Neg Labeled:");
+		for(Couple c:neglbl) { 
+			for(double d : c.getDistances())
+				System.out.print(d+", ");
+			System.out.println("\t"+c);
+		}
+
+		System.out.println("Labeled pos: "+poslbl.size());
+		System.out.println("Labeled neg: "+neglbl.size());
+        System.out.println("Questions submitted: "+counter);
 		
 		traceSvm(poslbl, neglbl);
 		
-		double tp = 0, tn = 0, fp = 0, fn = 0;
-		for(Couple c : poslbl)
-			if(classify(c)) tp++;
-			else fn++;
-		for(Couple c : neglbl)
-			if(classify(c)) fp++;
-			else tn++;
-        double pre = tp+fp != 0 ? tp / (tp + fp) : 0;
-        double rec = tp+fn != 0 ? tp / (tp + fn) : 0;
+		for(Couple c : poslbl) {
+			if(classify(c)) tp0++;
+			else fn0++;
+//			for(double d : c.getDistances())
+//				System.out.print(d+"\t");
+//			System.out.println();
+		}
+		for(Couple c : neglbl) {
+			if(classify(c)) fp0++;
+			else tn0++;
+//			for(double d : c.getDistances())
+//				System.out.print(d+"\t");
+//			System.out.println();
+		}
+        double pre = tp0+fp0 != 0 ? tp0 / (tp0 + fp0) : 0;
+        double rec = tp0+fn0 != 0 ? tp0 / (tp0 + fn0) : 0;
         double f1 = pre+rec != 0 ? 2 * pre * rec / (pre + rec) : 0;
         System.out.println("pre = "+pre+", rec = "+rec);
-        System.out.println("f1 = "+f1+" (tp="+tp+", fp="+fp+", tn="+tn+", fn="+fn+")");
-        System.out.println("questions submitted: "+counter);
+        System.out.println("f1 = "+f1+" (tp="+tp0+", fp="+fp0+", tn="+tn0+", fn="+fn0+")");
         
 		// testing...
 		
 		System.out.println("");
-		
+
 		testWholeDataset(sources, targets);
+		
+		Svm3D.draw(model, problem, theta, sv_d, theta0);
 		
 //			System.out.println(c.getSource().getPropertyValue("authors")+" | "+
 //					c.getTarget().getPropertyValue("authors")+" -> "+
@@ -187,29 +268,123 @@ public class MainAlgorithm {
 		
 	}
 
+	private static void normalizeNumValues(ArrayList<Couple> poslbl, ArrayList<Couple> neglbl) {
+		// normalize numeric values... [0,1]
+		for(int i=0; i<props.size(); i++)
+			if(props.get(i).getDatatype() == Property.TYPE_NUMERIC) {
+				double dmin = Double.POSITIVE_INFINITY;
+				double dmax = Double.NEGATIVE_INFINITY;
+				for(Couple c : poslbl) {
+					double d = c.getDistances().get(i);
+					if(d < dmin) dmin = d;
+					if(d > dmax) dmax = d;
+				}
+				for(Couple c : neglbl) {
+					double d = c.getDistances().get(i);
+					if(d < dmin) dmin = d;
+					if(d > dmax) dmax = d;
+				}
+				System.out.println("dmax = "+dmax+"; dmin = "+dmin);
+				for(Couple c : poslbl) {
+					double d = c.getDistances().get(i);
+					if(dmax - dmin == 0.0)
+						c.setDistance(1.0, i);
+					else
+						c.setDistance( 1.0 - (d-dmin)/(dmax-dmin), i);
+				}
+				for(Couple c : neglbl) {
+					double d = c.getDistances().get(i);
+					if(dmax - dmin == 0.0)
+						c.setDistance(1.0, i);
+					else
+						c.setDistance( 1.0 - (d-dmin)/(dmax-dmin), i);
+				}
+			}
+	}
+
+	private static double computeThreshold(int j) {
+		return (theta + beta) / w[j];
+	}
+
 	private static void testWholeDataset(TreeSet<Resource> sources, TreeSet<Resource> targets) {
-		double tp = 0, tn = 0, fp = 0, fn = 0;
-		for(Resource s : sources) {
-			for(Resource t : targets) {
+		int cnt = 0;
+		double tp = tp0, tn = tn0, fp = fp0, fn = fn0;
+		
+		final int BREAK_AT = 100000;
+        svm_node[][] x2 = new svm_node[problem.l+BREAK_AT][n];
+        for(int i=0; i<problem.x.length; i++)
+        	for(int j=0; j<problem.x[i].length; j++)
+        		x2[i][j] = problem.x[i][j];
+        double[] y2 = new double[problem.l+BREAK_AT];
+        for(int i=0; i<problem.y.length; i++)
+    		y2[i] = problem.y[i];
+        
+        ArrayList<Resource> src = new ArrayList<Resource>(sources);
+        ArrayList<Resource> tgt = new ArrayList<Resource>(targets);
+        ArrayList<String> ids = new ArrayList<String>();
+        
+        while(cnt < BREAK_AT) {
+        	Resource s = src.get((int)(src.size()*Math.random()));
+        	Resource t = tgt.get((int)(tgt.size()*Math.random()));
+//		for(Resource s : sources) {
+//			for(Resource t : targets) {
 //				Couple c = new Couple(s, t);
 				double[] val = new double[n];
 				int i = 0;
-				for(String p : s.getPropertyNames()) {
+				for(Property prop : props) {
 //					c.addDistance(StandardFilter.wed.proximity(
 //					s.getPropertyValue(p), t.getPropertyValue(p) ));
-					val[i] = StandardFilter.wed.proximity(s.getPropertyValue(p), t.getPropertyValue(p));
+					String p = prop.getName();
+					val[i] = prop.getFilter().getDistance(s.getPropertyValue(p), t.getPropertyValue(p));
+	                x2[problem.l+cnt][i] = new svm_node();
+	                x2[problem.l+cnt][i].index = i;
+	                x2[problem.l+cnt][i].value = val[i];
 					i++;
 				}
-				if(askOracle(s.getID()+"#"+t.getID())) {
-					if(classify(val)) tp++;
-					else fn++;
-				} else {
-					if(classify(val)) fp++;
-					else tn++;
-				}
-			}
-			System.out.print(".");
+//				System.out.println();
+//				System.out.println(s.getID()+"#"+t.getID()+"\t"
+//						+askOracle(s.getID()+"#"+t.getID()));
+				ids.add(s.getID()+"#"+t.getID());
+				
+				cnt++;
+//				if(cnt == BREAK_AT) break; // TODO remove me
+//			}
+			if(cnt % 1000 == 0)
+				System.out.print(".");
+			
 		}
+		// TODO normalize numeric values
+		for(int j=0; j<props.size(); j++) {
+			if(props.get(j).getDatatype() == Property.TYPE_NUMERIC) {
+		        for(int i=0; i<orig_x.length; i++)
+		    		x2[i][j].value = orig_x[i][j].value;
+				double dmin = Double.POSITIVE_INFINITY, dmax = Double.NEGATIVE_INFINITY;
+				for(int i=0; i<x2.length; i++) {
+		            if(x2[i][j].value < dmin) dmin = x2[i][j].value;
+		            if(x2[i][j].value > dmax) dmax = x2[i][j].value;
+				}
+				for(int i=0; i<x2.length; i++)
+		            x2[i][j].value = 1.0 - (x2[i][j].value - dmin) / (dmax - dmin);
+			}
+		}
+		
+		// predicts the new points
+		for(int i=0; i<ids.size(); i++) {
+			String id = ids.get(i);
+			if(askOracle(id)) {
+				if(classify(x2[problem.l+i])) tp++;
+				else fn++;
+				y2[problem.l+i] = 1;
+			} else {
+				if(classify(x2[problem.l+i])) fp++;
+				else tn++;
+				y2[problem.l+i] = -1;
+			}
+		}
+        
+		problem.x = x2;
+		problem.y = y2;
+		problem.l += cnt;
 		System.out.println();
         double pre = tp+fp != 0 ? tp / (tp + fp) : 0;
         double rec = tp+fn != 0 ? tp / (tp + fn) : 0;
@@ -227,6 +402,7 @@ public class MainAlgorithm {
 			} else
 				c.setPositive(false);
 		int neg = intersection.size() - pos;
+		System.out.println("Found: #pos = "+pos+"\t#neg = "+neg);
 		return pos >= k && neg >= k;
 	}
 
@@ -238,20 +414,22 @@ public class MainAlgorithm {
 		        e.remove();
 	        else {
 	        	for(Couple cj : join)
-	        		if(cj.equals(c))
+	        		if(cj.equals(c)) {
 	        			c.addDistance(cj.getDistances().get(0));
+	        			break;
+	        		}
 	        }	
 	    }
 	}
 	
 	private static boolean classify(Couple c) {
 		if(model == null) {
-			// Default classifier is always set as linear.
+			// Default classifier is always set to linear.
 			double sum = 0.0;
 			ArrayList<Double> dist = c.getDistances();
 			for(int i=0; i<dist.size(); i++)
 				sum += dist.get(i) * w[i];
-			return sum <= theta;
+			return sum >= theta;
 		}
         svm_node[] node = new svm_node[n];
         for(int i=0; i<n; i++) {
@@ -259,19 +437,11 @@ public class MainAlgorithm {
         	node[i].index = i;
         	node[i].value = c.getDistances().get(i);
         }
-        if(svm.svm_predict(model, node) == 1.0)
-        	return true;
-        else return false;
+        return classify(node);
 	}
 
-	private static boolean classify(double[] val) {
-        svm_node[] node = new svm_node[n];
-        for(int i=0; i<n; i++) {
-        	node[i] = new svm_node();
-        	node[i].index = i;
-        	node[i].value = val[i];
-        }
-        if(svm.svm_predict(model, node) == 1.0)
+	private static boolean classify(svm_node[] val) {
+        if(svm.svm_predict(model, val) == 1.0)
         	return true;
         else return false;
 	}
@@ -285,16 +455,16 @@ public class MainAlgorithm {
 		return (theta-beta) <= sum && sum <= (theta+beta);
 	}
 	
-	// XXX How to compute gamma (and informative examples) for polynomial classifiers? :)
+	// gamma = distance from classifier
     private static double computeGamma(ArrayList<Double> dist) {
         double numer = 0.0, denom = 0.0;
         for(int i=0; i<dist.size(); i++) {
             numer += dist.get(i) * w[i];
             denom += Math.pow(w[i], 2);
         }
-        numer += theta;
+        numer -= theta;
         denom = Math.sqrt(denom);
-        return Math.abs(denom/numer); // gamma = 1/D
+        return Math.abs(numer/denom);
     }
 
     private static boolean askOracle(Couple c) {
@@ -335,12 +505,13 @@ public class MainAlgorithm {
         
         // configure model
         // POLY: (gamma*u'*v + coef0)^degree
-        svm_problem problem = new svm_problem();
+        problem = new svm_problem();
         problem.l = size;
         problem.x = x;
         problem.y = y;
+        orig_x = x.clone();
         svm_parameter parameter = new svm_parameter();
-        parameter.C = 1E+6;
+        parameter.C = 1E+3;
         parameter.svm_type = svm_parameter.C_SVC;
         parameter.kernel_type = KERNEL;
         if(KERNEL == svm_parameter.POLY) {
@@ -358,7 +529,7 @@ public class MainAlgorithm {
         // vec = sv' * sv_coef' = (sv_coef * sv)' = ( n ; 1 )
         double[][] vec = new double[sv[0].length][sv_coef.length];
         // converting sv to double -> sv_d
-        double[][] sv_d = new double[sv.length][sv[0].length];
+        sv_d = new double[sv.length][sv[0].length];
         for(int i=0; i<sv.length; i++)
             for(int j=0; j<sv[i].length; j++)
                 sv_d[i][j] = sv[i][j].value;

@@ -6,29 +6,23 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.TreeSet;
 
+import utility.OrderByLengthAndAlpha;
 import acids2.Couple;
 import acids2.Resource;
-
-import filters.StandardFilter;
+import filters.WeightedEditDistanceFilter;
 import filters.test.FiltersTest;
-
-import similarities.WeightedEditDistanceExtended;
-import utility.OrderByLengthAndAlpha;
 
 
 /**
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class PassJoin extends StandardFilter {
+public class PassJoin extends WeightedEditDistanceFilter {
 
-	public static TreeSet<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, 
-			String propertyName, double θ) {
+	public TreeSet<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, 
+			String propertyName, double theta) {
 		
-		loadCaseWeights();
-		loadConfusionMatrix();
-				
-		int tau = (int) (θ / getMinWeight());
+		int tau = (int) (theta / this.getMinWeight());
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 		
@@ -66,7 +60,7 @@ public class PassJoin extends StandardFilter {
 									// wed.similarity considers string lengths
 									double d = wed.proximity(s, t);
 									count++;
-									if(d <= θ) {
+									if(d <= theta) {
 										Couple c = new Couple(cand, res);
 										c.addDistance(d);
 										results.add(c);

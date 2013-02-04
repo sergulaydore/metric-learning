@@ -1,22 +1,18 @@
 package filters.edjoin;
 
-import java.util.ArrayList;
 import java.util.TreeSet;
 
 import utility.SystemOutHandler;
 import acids2.Resource;
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
-import filters.StandardFilter;
+import filters.WeightedEditDistanceFilter;
 import filters.test.FiltersTest;
 
-public class EdJoinFilter extends StandardFilter {
+public class EdJoinFilter extends WeightedEditDistanceFilter {
 
-	public static TreeSet<String> edJoinFilter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double θ) {
-		
-		loadCaseWeights();
-		loadConfusionMatrix();
+	public TreeSet<String> edJoinFilter(TreeSet<Resource> sources,
+			TreeSet<Resource> targets, String propertyName, double theta) {
 		
 		TreeSet<Entry> sTree = new TreeSet<Entry>();
         for(Resource s : sources)
@@ -27,7 +23,7 @@ public class EdJoinFilter extends StandardFilter {
         
 		TreeSet<String> results = new TreeSet<String>();
 
-		int tau = (int) (θ / getMinWeight());
+		int tau = (int) (theta / getMinWeight());
 		
 	    long start = System.currentTimeMillis();
 

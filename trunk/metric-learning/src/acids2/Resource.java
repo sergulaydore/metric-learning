@@ -1,11 +1,8 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package acids2;
 
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -17,17 +14,13 @@ public class Resource implements Comparable<Resource> {
     
     private String ID;
     
-    public static final int DATATYPE_STRING = 1;
-    public static final int DATATYPE_NUMERIC = 2;
-    public static final int DATATYPE_DATE = 3;
-    
     /**
      * originalProperties include symbols.
      * properties are for weighted edit distance calculation.
      */
     private TreeMap<String, String> originalProperties = new TreeMap<String, String>();
     private TreeMap<String, String> properties = new TreeMap<String, String>();
-    private TreeMap<String, Integer> datatypes = new TreeMap<String, Integer>();
+    private ArrayList<String> propertyOrder = new ArrayList<String>();
 
     public Resource(String ID) {
         this.ID = ID;
@@ -45,19 +38,25 @@ public class Resource implements Comparable<Resource> {
         return originalProperties.get(p);
     }
 
-    public Set<String> getPropertyNames() {
-        return properties.keySet();
+    public ArrayList<String> getPropertyNames() {
+        return propertyOrder;
     }
     
-    public void setPropertyValue(String p, String v, int datatype) {
+    public void setPropertyValue(String p, String v) {
+    	String vn = normalize(v);
         originalProperties.put(p, v);
-        properties.put(p, normalize(v));
-        datatypes.put(p, datatype);
+        properties.put(p, vn);
+        propertyOrder.add(p);
     }
-
-	public TreeMap<String, Integer> getDatatypes() {
-		return datatypes;
-	}
+    
+    public int checkDatatype(String prop) {
+    	try {
+			Double.parseDouble(this.getPropertyValue(prop));
+		} catch (NumberFormatException e) {
+			return Property.TYPE_STRING;
+		}
+    	return Property.TYPE_NUMERIC;
+    }
 
 	@Override
 	public int compareTo(Resource o) {

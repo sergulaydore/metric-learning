@@ -26,16 +26,10 @@ public class PassJoin extends WeightedEditDistanceFilter {
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 		
-		// TODO for each dimension...
-		// delete the input parameter "propertyName"
-		// and load them from the first resource
-		
-		
 		Collections.sort(sources, new OrderByLengthAndAlpha(propertyName));
 		Collections.sort(targets, new OrderByLengthAndAlpha(propertyName));
 		
 		InvertedIndex sourceIndex = buildInvertedIndex(sources, propertyName, tau);
-		int count = 0;
 
 	    long start = System.currentTimeMillis();
 		
@@ -59,7 +53,6 @@ public class PassJoin extends WeightedEditDistanceFilter {
 									String t = res.getPropertyValue(propertyName);
 									// wed.similarity considers string lengths
 									double d = wed.proximity(s, t);
-									count++;
 									if(d <= theta) {
 										Couple c = new Couple(cand, res);
 										c.addDistance(d);

@@ -1,6 +1,5 @@
 package acids2;
 
-import filters.RandomFilter;
 import filters.StandardFilter;
 import filters.mahalanobis.MahalaFilter;
 import filters.reeded.ReededFilter;
@@ -14,11 +13,14 @@ public class Property {
 	private String name;
 	private int datatype;
 	private StandardFilter filter;
+	
+	private int index;
 
-	public Property(String name, int datatype) {
+	public Property(String name, int datatype, int index) {
 		super();
 		this.name = name;
 		this.datatype = datatype;
+		this.index = index;
 		switch(datatype) {
 		case TYPE_STRING:
 			this.filter = new ReededFilter();
@@ -53,5 +55,26 @@ public class Property {
 	public void setFilter(StandardFilter filter) {
 		this.filter = filter;
 	}
+
+	public String getDatatypeAsString() {
+		switch(datatype) {
+		case TYPE_STRING:
+			return "string";
+		case TYPE_NUMERIC:
+			return "numeric";
+		case TYPE_DATETIME:
+			return "datetime";
+		default:
+			return "unknown";
+		}
+	}
 	
+	public int getIndex() {
+		return index;
+	}
+
+	public void setIndex(int index) {
+		this.index = index;
+	}
+
 }

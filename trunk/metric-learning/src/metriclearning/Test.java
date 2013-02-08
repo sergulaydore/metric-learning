@@ -4,12 +4,12 @@
  */
 package metriclearning;
 
-import java.util.Vector;
 import libsvm.svm;
 import libsvm.svm_model;
 import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
+
 import org.math.array.LinearAlgebra;
 
 /**
@@ -37,6 +37,7 @@ public class Test {
 //        Notifier.notify(d, d, d, d, d, d, d, 100);
     }
     
+    @SuppressWarnings("unused")
     private static double testMe(double sourceNumericValue, double targetNumericValue) {
                 double srcVal, tgtVal;
                 if(Math.min(sourceNumericValue, targetNumericValue) < 0) {
@@ -59,6 +60,7 @@ public class Test {
                 return d;
     }
 
+    @SuppressWarnings("unused")
     private static void updateClassifier() {
         svm_problem problem = new svm_problem();
         final int L = 100;
@@ -93,7 +95,6 @@ public class Test {
         parameter.C = 0.5;
         parameter.kernel_type = svm_parameter.LINEAR;
         parameter.eps = 0.001;
-        svm svm = new svm();
         svm_model model = svm.svm_train(problem, parameter);
         svm_node[][] sv = model.SV;
         double[][] sv_coef = model.sv_coef;

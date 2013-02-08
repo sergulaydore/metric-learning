@@ -334,6 +334,7 @@ public class MetricLearning {
                 }
             targets.add(r);
         }
+        reader.close();
     }
     
     private static boolean isIgnored(String title) {
@@ -472,7 +473,8 @@ public class MetricLearning {
         return t;
     }
     
-    private static double svmPredict(double[] values) {
+    @SuppressWarnings("unused")
+	private static double svmPredict(double[] values) {
         svm_node[] svm_nds = new svm_node[values.length];
         for(int i=0; i<values.length; i++) {
             svm_nds[i] = new svm_node();
@@ -904,6 +906,7 @@ public class MetricLearning {
         return false;
     }
 
+    @SuppressWarnings("unused")
     private static void showCouples() {
         for(Couple1 c : couples) {
             Resource1 s = c.getSource();
@@ -1000,6 +1003,7 @@ public class MetricLearning {
             Notifier.notify(f1, pre, rec, tp, fp, tn, fn, 100);
     }
 
+    @SuppressWarnings("unused")
     private static void buildDatasets() {
         String src = "\"id\",", tgt = "\"id\",", map = "\"id1\",\"id2\"\n";
         
@@ -1053,6 +1057,7 @@ public class MetricLearning {
         } catch (Exception e){ w("Error: " + e.getMessage()); }
     }
 
+    @SuppressWarnings("unused")
     private static void adjustClassifier() {
         double[][] actualPosValues = new double[n][actualPos.size()];
         for(int j=0; j<actualPos.size(); j++) {
@@ -1144,6 +1149,7 @@ public class MetricLearning {
      * It's a good method, but it works only when we have enough positive examples
      * with *all* similarities next to 1.0
      */ 
+    @SuppressWarnings("unused")
     private static double calculateBiasFactor() {
         double min_q = (double)n / 2.0;
         double max_q = 1.0 + Math.sqrt((double)n - 1.0);

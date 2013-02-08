@@ -4,8 +4,12 @@
  */
 package metriclearning;
 
-import java.util.ArrayList;
-import libsvm.*;
+import libsvm.svm;
+import libsvm.svm_model;
+import libsvm.svm_node;
+import libsvm.svm_parameter;
+import libsvm.svm_problem;
+
 import org.math.array.LinearAlgebra;
 
 /**

@@ -9,16 +9,12 @@ public class WeightedNgram {
 	/**
 	 * Update interval for weights.
 	 */
-	private static final double DELTA = 0.2;
+	private static final double DELTA = 0.05;
 	private static HashMap<String, Double> weights = new HashMap<String, Double>();
+
+	private static TreeSet<String> ngCacheIncrease = new TreeSet<String>();
+	private static TreeSet<String> ngCacheDecrease = new TreeSet<String>();
 	
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		double d = distance("Ngonga A.", "Ngonga A., Soru T.", 3);
-		System.out.println("distance = "+d);
-	}
 	
 	public static double distance(String s1, String s2) {
 		// default is trigram
@@ -73,19 +69,43 @@ public class WeightedNgram {
 			return d;
 	}
 	
-	public static void increaseWeight(String ng) {
-		Double d = weights.get(ng);
-		double dnew = d + DELTA;
-		weights.put(ng, dnew);
-		System.out.println("COST("+ng+") = "+dnew);
+	public static void prepareNgCache(String s1, String s2, boolean increase, int n) {
+		TreeSet<String> ng1 = getNgrams(s1, n);
+		TreeSet<String> ng2 = getNgrams(s2, n);
+		if(increase)
+			ngCacheIncrease.addAll(intersect(ng1, ng2));
+		else
+			ngCacheDecrease.addAll(intersect(ng1, ng2));
 	}
 	
-	public static void decreaseWeight(String ng) {
-		Double d = weights.get(ng);
-		double dnew = d - DELTA;
-		if(dnew < 0) dnew = 0;
-		weights.put(ng, dnew);
-		System.out.println("COST("+ng+") = "+dnew);
+	public static void updateWeights() {
+		for(String ng : ngCacheIncrease) {
+			Double d = getWeight(ng);
+			double dnew = d + DELTA;
+			weights.put(ng, dnew);
+//			System.out.println("COST("+ng+") = "+dnew);
+		}
+		for(String ng : ngCacheDecrease) {
+			Double d = getWeight(ng);
+			double dnew = d - DELTA;
+			if(dnew < 0) dnew = 0;
+			weights.put(ng, dnew);
+//			System.out.println("COST("+ng+") = "+dnew);
+		}
+//		// normalization. may be optimized: if(!ngCacheIncrease.isEmpty()) max = 1.0 + DELTA; else skip norm.
+//		double max = Double.NEGATIVE_INFINITY;
+//		for(Double d : weights.values())
+//			if(d > max)
+//				max = d;
+//		for(String key : weights.keySet())
+//			weights.put(key, weights.get(key) / max);
+		
+		ngCacheIncrease.clear();
+		ngCacheDecrease.clear();
+	}
+
+	public static HashMap<String, Double> getWeights() {
+		return weights;
 	}
 
 }

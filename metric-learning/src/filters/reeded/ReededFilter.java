@@ -3,10 +3,6 @@ package filters.reeded;
 import java.util.TreeSet;
 import java.util.Vector;
 
-import distances.WeightedNgram;
-
-import utility.Transform;
-
 import acids2.Couple;
 import acids2.Resource;
 import filters.WeightedEditDistanceFilter;
@@ -70,13 +66,6 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 	
 	private void reededCore(Resource s, Resource t, String propertyName, 
 			double tau, double theta, TreeSet<Couple> results) {
-		// TODO remove me
-		if(propertyName.equals("description")) {
-			Couple cpl = new Couple(s, t);
-			cpl.addDistance(0.0);
-			results.add(cpl);
-			return;
-		}
 		String sp = s.getPropertyValue(propertyName);
 		String tp = t.getPropertyValue(propertyName);
 		if(Math.abs(sp.length() - tp.length()) <= tau) {

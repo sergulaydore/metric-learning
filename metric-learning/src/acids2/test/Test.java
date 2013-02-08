@@ -19,6 +19,8 @@ public class Test {
     static {
     	ignoredList.add("id");
     	ignoredList.add("venue");
+    	ignoredList.add("description");
+    	ignoredList.add("price");
     }
     /**
 	 * @param args
@@ -26,7 +28,12 @@ public class Test {
 	 */
 	public static void main(String[] args) throws IOException {
 		
-		String datasetPath = "4-abt-buy"; // TODO args[0];
+		String datasetPath = args[0];
+//		String datasetPath = "1-dblp-acm";
+//		String datasetPath = "2-dblp-scholar";
+//		String datasetPath = "4-abt-buy";
+		double th0c = Double.parseDouble(args[1]);
+		int k = Integer.parseInt(args[2]);
 		
 		String sourcePath = "data/" + datasetPath + "/sources.csv";
 		String targetPath = "data/" + datasetPath + "/targets.csv";
@@ -35,7 +42,7 @@ public class Test {
 		String mappingPath = "data/" + datasetPath + "/mapping.csv";
 		loadMappings(mappingPath);
 		
-		MainAlgorithm.start(sources, targets);
+		MainAlgorithm.start(sources, targets, th0c, k);
 		
 	}
 

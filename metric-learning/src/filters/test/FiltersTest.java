@@ -95,6 +95,7 @@ public class FiltersTest {
         return false;
     }
 
+    @SuppressWarnings("unused")
     private static void testPassJoinThresholds(String dataset, String propertyName) throws IOException {
 		
 		System.out.println(sources.size());
@@ -116,6 +117,7 @@ public class FiltersTest {
 		
 	}
 
+    @SuppressWarnings("unused")
 	private static void testEDJoinThresholds(String dataset, String propertyName) throws IOException {
 
         TreeSet<Entry> sTree = new TreeSet<Entry>();
@@ -142,6 +144,7 @@ public class FiltersTest {
 		}
 	}
 
+    @SuppressWarnings("unused")
 	private static void crossValidation(String dataset, String propertyName) throws IOException {
 		System.out.println("PassJoin");
 		TreeSet<Couple> pj = testPassJoinOnce(propertyName, 1);
@@ -249,6 +252,7 @@ public class FiltersTest {
 		return passjResults;
 	}
 
+    @SuppressWarnings("unused")
 	private static TreeSet<Couple> testQuadraticJoin(String propertyName, double θ) throws IOException {
 		
 		System.out.println(sources.size());
@@ -306,7 +310,6 @@ public class FiltersTest {
 		try {
 			sysout = URLEncoder.encode(s, "ISO-8859-1");
 		} catch (UnsupportedEncodingException e1) {
-			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
     	
@@ -389,6 +392,7 @@ public class FiltersTest {
 		}
 	}
 
+    @SuppressWarnings("unused")
 	private static void launchTests(String[] dataset, String[] pname) throws IOException {
 		
 		THETA_MAX = 2;
@@ -444,6 +448,7 @@ public class FiltersTest {
 		}
 	}
 
+    @SuppressWarnings("unused")
 	private static void crossValidate(TreeSet<String> pjs, TreeSet<String> oafs) {
 			System.out.println("\nPJ but not OAF");
 			for(String s : pjs)

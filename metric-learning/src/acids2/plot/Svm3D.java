@@ -2,6 +2,11 @@ package acids2.plot;
 
 import java.util.TreeSet;
 
+import libsvm.svm_model;
+import libsvm.svm_node;
+import libsvm.svm_parameter;
+import libsvm.svm_problem;
+
 import org.jzy3d.chart.Chart;
 import org.jzy3d.chart.ChartLauncher;
 import org.jzy3d.colors.Color;
@@ -9,23 +14,17 @@ import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.colormaps.ColorMapRainbow;
 import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Range;
-import org.jzy3d.maths.Scale;
 import org.jzy3d.plot3d.builder.Builder;
 import org.jzy3d.plot3d.builder.Mapper;
 import org.jzy3d.plot3d.builder.concrete.OrthonormalGrid;
-import org.jzy3d.plot3d.primitives.MultiColorScatter;
 import org.jzy3d.plot3d.primitives.Scatter;
 import org.jzy3d.plot3d.primitives.Shape;
 import org.jzy3d.plot3d.rendering.canvas.Quality;
 
-import libsvm.svm_model;
-import libsvm.svm_node;
-import libsvm.svm_parameter;
-import libsvm.svm_problem;
-
 public class Svm3D {
 
 	private static final double BOUND = 1;
+	private static final float POINT_SIZE = 3;
 
 	private static Chart chart;
 	
@@ -105,7 +104,7 @@ public class Svm3D {
 		}       
 
 		// Create a drawable scatter with a colormap
-		Scatter scatter = new Scatter( points, colors, 5 );
+		Scatter scatter = new Scatter( points, colors, POINT_SIZE );
 		
 		// Create a chart and add the surface
 		chart = new Chart(Quality.Advanced);
@@ -129,6 +128,7 @@ public class Svm3D {
 		while(true) {
 			den = 0.0;
 			for(int j=0; j<alpha[0].length; j++)
+				// TODO handle ArrayIndexOutOfBoundsException in order to plot in 2D.
 				den += alpha[0][j] * sv[j][i2];
 			if(Math.abs(den) < 1E-3) {
 				System.out.println("PLOT: orientation changed.");

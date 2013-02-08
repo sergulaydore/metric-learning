@@ -6,13 +6,10 @@ import java.util.HashMap;
 import java.util.Scanner;
 import java.util.TreeSet;
 
-import distances.WeightedEditDistanceExtended;
-import distances.WeightedNgram;
-
 import acids2.Couple;
 import acids2.Resource;
-
-import utility.Transform;
+import distances.WeightedEditDistanceExtended;
+import distances.WeightedNgram;
 
 public class WeightedEditDistanceFilter implements StandardFilter {
 

@@ -3,7 +3,6 @@ package acids2;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;
-import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -50,9 +49,12 @@ public class Resource implements Comparable<Resource> {
     }
     
     public int checkDatatype(String prop) {
+    	if(this.getPropertyValue(prop).equals(""))
+    		return Property.TYPE_NUMERIC;
     	try {
 			Double.parseDouble(this.getPropertyValue(prop));
 		} catch (NumberFormatException e) {
+			System.out.println(prop+": "+this.getPropertyValue(prop)+" is not a double.");
 			return Property.TYPE_STRING;
 		}
     	return Property.TYPE_NUMERIC;

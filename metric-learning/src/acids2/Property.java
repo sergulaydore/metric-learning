@@ -3,6 +3,8 @@ package acids2;
 import filters.StandardFilter;
 import filters.mahalanobis.MahalaFilter;
 import filters.reeded.ReededFilter;
+import filters.reeding.HybridFilter;
+import filters.reeding.ReedingFilter;
 
 public class Property {
 	
@@ -13,7 +15,7 @@ public class Property {
 	private String name;
 	private int datatype;
 	private StandardFilter filter;
-	
+
 	private int index;
 
 	public Property(String name, int datatype, int index) {
@@ -23,7 +25,7 @@ public class Property {
 		this.index = index;
 		switch(datatype) {
 		case TYPE_STRING:
-			this.filter = new ReededFilter();
+			this.filter = new HybridFilter();
 			break;
 		case TYPE_NUMERIC:
 			this.filter = new MahalaFilter();
@@ -32,7 +34,7 @@ public class Property {
 			this.filter = new MahalaFilter();
 			break;
 		default: // string comparison always works.
-			this.filter = new ReededFilter();
+			this.filter = new HybridFilter();
 			break;
 		}
 	}

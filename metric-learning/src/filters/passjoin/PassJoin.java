@@ -183,5 +183,24 @@ public class PassJoin extends WeightedEditDistanceFilter {
 		return ps;
 	}
 
+	@Override
+	public TreeSet<Couple> filter(TreeSet<Resource> sources,
+			TreeSet<Resource> targets, String propertyName, double theta) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+			String propertyName, double theta) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public HashMap<String, Double> getWeights() {
+		return new HashMap<String, Double>();
+	}
+
 
 }

@@ -1,20 +1,24 @@
-package filters.reeded;
+package filters.reeding;
 
-import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.Vector;
+
+import utility.Transform;
 
 import acids2.Couple;
 import acids2.Resource;
 import filters.WeightedEditDistanceFilter;
+import filters.WeightedNgramFilter;
 
 /**
+ * Rapid Execution of weightED N-Grams (REEDiNG) filter.
+ *  
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class ReededFilter extends WeightedEditDistanceFilter {
+public class HybridFilter extends WeightedNgramFilter {
 	
-	public ReededFilter() {
+	public HybridFilter() {
 		super();
 	}
 	
@@ -24,8 +28,8 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 
-		double mw = getMinWeight();
-		double tau = theta / mw;
+		double tau = Transform.toDistance(theta) / WeightedEditDistanceFilter.INIT_CASE_WEIGHT; // this.getMinWeight();
+		System.out.println("theta = "+theta+"\ttau = "+tau);
 		
 		long start = System.currentTimeMillis();
 		for(Couple c : intersection)
@@ -43,8 +47,8 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 
-		double mw = getMinWeight();
-		double tau = theta / mw;
+		double tau = Transform.toDistance(theta) / WeightedEditDistanceFilter.INIT_CASE_WEIGHT; // this.getMinWeight();
+		System.out.println("theta = "+theta+"\ttau = "+tau);
 		
 		long start = System.currentTimeMillis();
 		
@@ -76,25 +80,20 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 			Vector<Character> ct = new Vector<Character>();
 			for(int i=0; i<tp.length(); i++)
 				ct.add(tp.charAt(i));
-			Vector<Character> c = subtract(cs, ct);
-			c.addAll(subtract(ct, cs));
-			double minGap = (int)(c.size() / 2);// + (size % 2) * minInsdel;
+			Vector<Character> ctot = subtract(cs, ct);
+			ctot.addAll(subtract(ct, cs));
+			double minGap = (int)(ctot.size() / 2);// + (size % 2) * minInsdel;
 			if(minGap <= tau) {
 				//  Verification.
-				double d = this.getDistance(sp, tp);
-				if(d <= theta) {
-					Couple cpl = new Couple(s, t);
-					cpl.addDistance(d);
-					results.add(cpl);
+				double sim = this.getDistance(sp, tp);
+				if(sim >= theta) {
+					Couple c = new Couple(s, t);
+					c.addDistance(sim);
+					results.add(c);
 				}
 			}
 		}
-		
 	}
 
-	@Override
-	public HashMap<String, Double> getWeights() {
-		return weights;
-	}
 
 }

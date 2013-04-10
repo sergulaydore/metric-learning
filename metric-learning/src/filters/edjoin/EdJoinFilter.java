@@ -1,8 +1,10 @@
 package filters.edjoin;
 
+import java.util.HashMap;
 import java.util.TreeSet;
 
 import utility.SystemOutHandler;
+import acids2.Couple;
 import acids2.Resource;
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
@@ -39,4 +41,24 @@ public class EdJoinFilter extends WeightedEditDistanceFilter {
 		return results;
 	}
 
+
+	@Override
+	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+			String propertyName, double theta) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public TreeSet<Couple> filter(TreeSet<Resource> sources,
+			TreeSet<Resource> targets, String propertyName, double theta) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public HashMap<String, Double> getWeights() {
+		return new HashMap<String, Double>();
+	}
 }

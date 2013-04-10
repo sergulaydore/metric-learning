@@ -20,8 +20,9 @@ public class Test {
     	ignoredList.add("id");
     	ignoredList.add("venue");
     	ignoredList.add("description");
-    	ignoredList.add("price");
+//    	ignoredList.add("price");
     }
+
     /**
 	 * @param args
 	 * @throws IOException 
@@ -34,6 +35,7 @@ public class Test {
 //		String datasetPath = "4-abt-buy";
 		double th0c = Double.parseDouble(args[1]);
 		int k = Integer.parseInt(args[2]);
+		double beta = Double.parseDouble(args[3]);
 		
 		String sourcePath = "data/" + datasetPath + "/sources.csv";
 		String targetPath = "data/" + datasetPath + "/targets.csv";
@@ -42,7 +44,8 @@ public class Test {
 		String mappingPath = "data/" + datasetPath + "/mapping.csv";
 		loadMappings(mappingPath);
 		
-		MainAlgorithm.start(sources, targets, th0c, k);
+		System.out.println("th0c = "+th0c+"\tk = "+k+"\tbeta = "+beta);
+		MainAlgorithm.start(sources, targets, th0c, k, beta);
 		
 	}
 

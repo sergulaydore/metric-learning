@@ -21,6 +21,7 @@ import au.com.bytecode.opencsv.CSVReader;
 import filters.edjoin.EdJoinFilter;
 import filters.passjoin.PassJoin;
 import filters.reeded.ReededFilter;
+import filters.reeding.ReedingFilter;
 
 
 public class FiltersTest {
@@ -104,15 +105,15 @@ public class FiltersTest {
 	    
 	    PassJoin pj = new PassJoin();
 	    
-		for(int θ=0; θ<=5; θ++) {
+		for(int theta=0; theta<=5; theta++) {
 	
 			long start = System.currentTimeMillis();
 			
 			passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
-					propertyName, θ);
+					propertyName, theta);
 			
 			double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-			System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
+			System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
 		}
 		
 	}
@@ -131,16 +132,16 @@ public class FiltersTest {
 		
 		TreeSet<String> edjResults = null;
 		
-		for(int θ=0; θ<=5; θ++) {
+		for(int theta=0; theta<=5; theta++) {
 			
 			long start = System.currentTimeMillis();
 
 			SystemOutHandler.shutDown();
-            edjResults = EdJoinPlus.runOnEntries(0, θ, sTree, tTree);
+            edjResults = EdJoinPlus.runOnEntries(0, theta, sTree, tTree);
             SystemOutHandler.turnOn();
 
     		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-    		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+edjResults.size());
+    		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+edjResults.size());
 		}
 	}
 
@@ -175,7 +176,7 @@ public class FiltersTest {
 		}
 	}
 
-	private static TreeSet<String> testEdJoinOnce(String propertyName, double θ) throws IOException {
+	private static TreeSet<String> testEdJoinOnce(String propertyName, double theta) throws IOException {
 		
 		long start = System.currentTimeMillis();
 		
@@ -184,18 +185,18 @@ public class FiltersTest {
 		TreeSet<String> edjResults = null;
 		
 		EdJoinFilter ed = new EdJoinFilter();
-		edjResults = ed.edJoinFilter(sources, targets, propertyName, θ);
+		edjResults = ed.edJoinFilter(sources, targets, propertyName, theta);
 		
         long now = System.currentTimeMillis();
 		double compTime = (double)(now-start)/1000.0;
 		
-		System.out.println(θ+"\t"+compTime+"\t"+edjResults.size());
-		sys_out += θ+"\t"+compTime+"\t"+edjResults.size()+"\n";
+		System.out.println(theta+"\t"+compTime+"\t"+edjResults.size());
+		sys_out += theta+"\t"+compTime+"\t"+edjResults.size()+"\n";
 		
 		return edjResults;
 	}
 
-	private static TreeSet<Couple> testPassJoinOnce(String propertyName, int θ) throws IOException {
+	private static TreeSet<Couple> testPassJoinOnce(String propertyName, int theta) throws IOException {
 
 		System.out.println(sources.size());
 
@@ -205,15 +206,15 @@ public class FiltersTest {
 		
 		PassJoin pj = new PassJoin();
 		passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
-				propertyName, θ);
+				propertyName, theta);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
+		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
 		
 		return passjResults;
 	}
 
-	private static TreeSet<Couple> testOurApproachFilter(String propertyName, double θ) throws IOException {
+	private static TreeSet<Couple> testOurApproachFilter(String propertyName, double theta) throws IOException {
 
 //		System.out.println(sources.size());
 
@@ -221,18 +222,19 @@ public class FiltersTest {
 	    
 	    long start = System.currentTimeMillis();
 		
-	    ReededFilter rf = new ReededFilter();
-		oafResults = rf.filter(sources, targets, propertyName, θ);
+//	    ReededFilter rf = new ReededFilter();
+	    ReedingFilter rf = new ReedingFilter();
+		oafResults = rf.filter(sources, targets, propertyName, theta);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-//		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+oafResults.size());
-		System.out.println(θ+"\t"+compTime+"\t"+oafResults.size());
-		sys_out += θ+"\t"+compTime+"\t"+oafResults.size()+"\n";
+//		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+oafResults.size());
+		System.out.println(theta+"\t"+compTime+"\t"+oafResults.size());
+		sys_out += theta+"\t"+compTime+"\t"+oafResults.size()+"\n";
 		
 		return oafResults;
 	}
 
-	private static TreeSet<Couple> testPassJoin(String propertyName, double θ) throws IOException {
+	private static TreeSet<Couple> testPassJoin(String propertyName, double theta) throws IOException {
 
 //		System.out.println(sources.size());
 
@@ -242,18 +244,18 @@ public class FiltersTest {
 	    
 	    PassJoin pj = new PassJoin();
 		passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
-				propertyName, θ);
+				propertyName, theta);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-//		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
-		System.out.println(θ+"\t"+compTime+"\t"+passjResults.size());
-		sys_out += θ+"\t"+compTime+"\t"+passjResults.size()+"\n";
+//		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
+		System.out.println(theta+"\t"+compTime+"\t"+passjResults.size());
+		sys_out += theta+"\t"+compTime+"\t"+passjResults.size()+"\n";
 		
 		return passjResults;
 	}
 
     @SuppressWarnings("unused")
-	private static TreeSet<Couple> testQuadraticJoin(String propertyName, double θ) throws IOException {
+	private static TreeSet<Couple> testQuadraticJoin(String propertyName, double theta) throws IOException {
 		
 		System.out.println(sources.size());
 
@@ -293,13 +295,13 @@ public class FiltersTest {
 		for(Resource s : sources)
 			for(Resource t : targets) {
 				double d = wed.proximity(s.getPropertyValue(propertyName), t.getPropertyValue(propertyName));
-				if(d <= θ)
+				if(d <= theta)
 					quadrResults.add(new Couple(s,t));
 			}
 		System.out.println(sources.size()*targets.size());
 				
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.println("θ = "+θ+"\t\tΔt = "+compTime+"\t\t|R| = "+quadrResults.size());
+		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+quadrResults.size());
 		
 		return quadrResults;
 	}
@@ -335,31 +337,31 @@ public class FiltersTest {
 	public static void main(String[] args) throws IOException {
 		
 		String[] dataset = { 
-//				"data/1-dblp-acm/sources.csv",
+				"data/1-dblp-acm/sources.csv",
 //				"data/1-dblp-acm/targets.csv",
 //				"data/3-amazon-googleproducts/targets.csv",
 //				"data/4-abt-buy/sources.csv",
 //				"data/5-person1/sources.csv",
 //				"data/6-restaurant/sources.csv",
-			"data/8-scalability/persons.csv",
-			"data/8-scalability/places.csv",
-			"data/8-scalability/works.csv",
+//			"data/8-scalability/persons.csv",
+//			"data/8-scalability/places.csv",
+//			"data/8-scalability/works.csv",
 		};
 		String[] pname = {
-//				"title",
+				"title",
 //				"authors",
 //				"name",
 //				"description",
 //				"surname",
 //				"name",
-			"name",
-			"name",
-			"name",
+//			"name",
+//			"name",
+//			"name",
 		};
 		
-//		launchTests(dataset, pname);
+		launchTests(dataset, pname);
 		
-		scalabilityTests(dataset, pname);
+//		scalabilityTests(dataset, pname);
 		
 	}
 
@@ -392,7 +394,6 @@ public class FiltersTest {
 		}
 	}
 
-    @SuppressWarnings("unused")
 	private static void launchTests(String[] dataset, String[] pname) throws IOException {
 		
 		THETA_MAX = 2;
@@ -406,9 +407,9 @@ public class FiltersTest {
 		
 //				TreeSet<String> pjs = null, oafs = null;
 
-			for(double theta=1; theta<=THETA_MAX; theta++) {
+//			for(double theta=1; theta<=THETA_MAX; theta++) {
 //			    	TreeSet<Couple> pj = 
-					testPassJoin(pname[i], theta);
+//					testPassJoin(pname[i], theta);
 //					pjs = new TreeSet<String>();
 //					for(Couple c : pj) {
 //		//				System.out.println(c.getSource().getID()
@@ -419,9 +420,10 @@ public class FiltersTest {
 //						pjs.add(c.getSource().getOriginalPropertyValue(pname[i])+"#"+
 //								c.getTarget().getOriginalPropertyValue(pname[i]));
 //					}
-			}
+//			}
 		
-			for(double theta=1; theta<=THETA_MAX; theta++) {
+			for(double theta=.9; theta<=.9; theta+=.1) {
+				System.out.println("theta = "+theta);
 //			    	TreeSet<Couple> oaf = 
 					testOurApproachFilter(pname[i], theta);
 //					oafs = new TreeSet<String>();

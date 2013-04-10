@@ -1,14 +1,16 @@
 package filters.mahalanobis;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.TreeSet;
 
+import utility.Transform;
 import utility.ValueParser;
 import acids2.Couple;
 import acids2.Resource;
 import filters.StandardFilter;
 
-public class MahalaFilter implements StandardFilter {
+public class MahalaFilter extends StandardFilter {
 
 	private ArrayList<Double> extrema = new ArrayList<Double>();
 	
@@ -39,12 +41,14 @@ public class MahalaFilter implements StandardFilter {
 		String sp = s.getPropertyValue(pname);
 		String tp = t.getPropertyValue(pname);
 		double d = getDistance(sp, tp);
-		// TODO transform threshold into similarity: theta_sigma = phi(theta_delta)
-//		if(d <= theta) {
-			Couple cpl = new Couple(s, t);
-			cpl.addDistance(d);
-			results.add(cpl);
-//		}
+		double theta_d = Transform.toDistance(theta);
+		// couples should be discarded only when there is information about them
+		if(d <= theta_d || Double.isNaN(d)) {
+			Couple c = new Couple(s, t);
+			// distance values are then normalized into [0,1]
+			c.addDistance(d);
+			results.add(c);
+		}
 	}
 
 	@Override
@@ -57,6 +61,11 @@ public class MahalaFilter implements StandardFilter {
 			return Math.abs(sd-td);
 	}
 
+	@Override
+	public HashMap<String, Double> getWeights() {
+		return new HashMap<String, Double>();
+	}
+	
 	public void setExtrema(ArrayList<Double> ext) {
 		this.extrema = ext;
 	}

@@ -5,6 +5,8 @@ import java.text.Normalizer.Form;
 import java.util.ArrayList;
 import java.util.TreeMap;
 
+import utility.StringUtilities;
+
 /**
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
@@ -42,7 +44,7 @@ public class Resource implements Comparable<Resource> {
     }
     
     public void setPropertyValue(String p, String v) {
-    	String vn = normalize(v);
+    	String vn = StringUtilities.normalize(v);
         originalProperties.put(p, v);
         properties.put(p, vn);
         propertyOrder.add(p);
@@ -54,7 +56,7 @@ public class Resource implements Comparable<Resource> {
     	try {
 			Double.parseDouble(this.getPropertyValue(prop));
 		} catch (NumberFormatException e) {
-			System.out.println(prop+": "+this.getPropertyValue(prop)+" is not a double.");
+//			System.out.println(prop+": "+this.getPropertyValue(prop)+" is not a double.");
 			return Property.TYPE_STRING;
 		}
     	return Property.TYPE_NUMERIC;
@@ -65,21 +67,5 @@ public class Resource implements Comparable<Resource> {
 		return this.getID().compareTo(o.getID());
 	}
     
-	/**
-	 * This method filters out all the characters that are different from:
-	 * digits (ASCII code 48-57), upper case (65-90), lower-case letters (97-122) and space (32).
-	 * @param in
-	 * @return
-	 */
-    private static String normalize(String in) {
-        in = Normalizer.normalize(in, Form.NFD).trim();
-        String out = "";
-        for(int i=0; i<in.length(); i++) {
-            char c = in.charAt(i);
-            if((48 <= c && c <= 57) || (65 <= c && c <= 90) || (97 <= c && c <= 122) || c == 32)
-                out += c;
-        }
-        return out;
-    }
     
 }

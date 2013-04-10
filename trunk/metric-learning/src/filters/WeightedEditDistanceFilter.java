@@ -4,17 +4,13 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.HashMap;
 import java.util.Scanner;
-import java.util.TreeSet;
 
-import acids2.Couple;
-import acids2.Resource;
 import distances.WeightedEditDistanceExtended;
-import distances.WeightedNgram;
 
-public class WeightedEditDistanceFilter implements StandardFilter {
+public abstract class WeightedEditDistanceFilter extends StandardFilter {
 
-	protected final double INIT_FULL_WEIGHT = 1.0;
-	protected final double INIT_CASE_WEIGHT = 0.5;
+	public static final double INIT_FULL_WEIGHT = 1.0;
+	public static final double INIT_CASE_WEIGHT = 0.5;
 
 	protected HashMap<String, Double> weights = new HashMap<String, Double>();
 	
@@ -104,20 +100,7 @@ public class WeightedEditDistanceFilter implements StandardFilter {
 	}
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
-		return null;
-	}
-
-	@Override
-	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
-			String propertyName, double theta) {
-		return null;
-	}
-
-	@Override
 	public double getDistance(String sp, String tp) {
-//		return 1.0 / Math.pow(1.0 + wed.proximity(sp, tp), 0.25);
-		return WeightedNgram.distance(sp, tp);
+		return 1.0 / (1.0 + wed.proximity(sp, tp));
 	}
 }

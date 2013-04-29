@@ -8,12 +8,15 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.TreeSet;
+import java.util.Vector;
 
 import distances.WeightedEditDistanceExtended;
 
 import utility.SystemOutHandler;
 import acids2.Couple;
+import acids2.Property;
 import acids2.Resource;
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
@@ -97,20 +100,20 @@ public class FiltersTest {
     }
 
     @SuppressWarnings("unused")
-    private static void testPassJoinThresholds(String dataset, String propertyName) throws IOException {
+    private static void testPassJoinThresholds(String dataset, Property p) throws IOException {
 		
 		System.out.println(sources.size());
 
 	    TreeSet<Couple> passjResults = null;
 	    
-	    PassJoin pj = new PassJoin();
+	    PassJoin pj = new PassJoin(p);
 	    
 		for(int theta=0; theta<=5; theta++) {
 	
 			long start = System.currentTimeMillis();
 			
 			passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
-					propertyName, theta);
+					p.getName(), theta);
 			
 			double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 			System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
@@ -146,12 +149,12 @@ public class FiltersTest {
 	}
 
     @SuppressWarnings("unused")
-	private static void crossValidation(String dataset, String propertyName) throws IOException {
+	private static void crossValidation(String dataset, Property p) throws IOException {
 		System.out.println("PassJoin");
-		TreeSet<Couple> pj = testPassJoinOnce(propertyName, 1);
+		TreeSet<Couple> pj = testPassJoinOnce(p, 1);
 		
 		System.out.println("EDJoin");
-		TreeSet<String> ej = testEdJoinOnce(propertyName, 1);
+		TreeSet<Couple> ej = testEdJoinOnce(p, 1);
 
 		// Cross-validation.
 		int i = 0;
@@ -160,33 +163,33 @@ public class FiltersTest {
 			if(!ej.contains( c.getSource().getID()+"#"+c.getTarget().getID() ))
 				System.out.println(i+". "+c.getSource().getID()
 						+ "\t" + c.getTarget().getID()
-						+ "\t" + c.getSource().getPropertyValue(propertyName)
-						+ "\t" + c.getTarget().getPropertyValue(propertyName)
-						+ "\t" + c.getSimilarities().get(0));
+						+ "\t" + c.getSource().getPropertyValue(p.getName())
+						+ "\t" + c.getTarget().getPropertyValue(p.getName())
+						+ "\t" + c.getDistanceAt(0));
 		}
 		
 		// (!) Cannot directly check the other way, because we would like to print the titles
 		// and EDJoin returns only the IDs.
 		
-		for(String s : ej) {
-			String[] ss = s.split("#");
+		for(Couple s : ej) {
+			String[] ss = s.toString().split("#");
 			Couple c = new Couple(new Resource(ss[0]), new Resource(ss[1]));
 			if(!pj.contains(c))
 				System.out.println(c.getSource().getID()+"#"+c.getTarget().getID());
 		}
 	}
 
-	private static TreeSet<String> testEdJoinOnce(String propertyName, double theta) throws IOException {
-		
-		long start = System.currentTimeMillis();
+	private static TreeSet<Couple> testEdJoinOnce(Property p, double theta) throws IOException {
 		
 //		System.out.println(sources.size());
 		
-		TreeSet<String> edjResults = null;
+		TreeSet<Couple> edjResults = null;
 		
-		EdJoinFilter ed = new EdJoinFilter();
-		edjResults = ed.edJoinFilter(sources, targets, propertyName, theta);
+		EdJoinFilter ed = new EdJoinFilter(p);
+		ed.setVerbose(false);
 		
+		long start = System.currentTimeMillis();
+		edjResults = ed.filter(sources, targets, p.getName(), theta);
         long now = System.currentTimeMillis();
 		double compTime = (double)(now-start)/1000.0;
 		
@@ -196,7 +199,7 @@ public class FiltersTest {
 		return edjResults;
 	}
 
-	private static TreeSet<Couple> testPassJoinOnce(String propertyName, int theta) throws IOException {
+	private static TreeSet<Couple> testPassJoinOnce(Property p, int theta) throws IOException {
 
 		System.out.println(sources.size());
 
@@ -204,9 +207,9 @@ public class FiltersTest {
 	    
 		long start = System.currentTimeMillis();
 		
-		PassJoin pj = new PassJoin();
+		PassJoin pj = new PassJoin(p);
 		passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
-				propertyName, theta);
+				p.getName(), theta);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
@@ -214,41 +217,44 @@ public class FiltersTest {
 		return passjResults;
 	}
 
-	private static TreeSet<Couple> testOurApproachFilter(String propertyName, double theta) throws IOException {
+	private static TreeSet<Couple> testReededFilter(Property p, double theta) throws IOException {
 
 //		System.out.println(sources.size());
 
 	    TreeSet<Couple> oafResults = null;
 	    
+		ReededFilter rf = new ReededFilter(p);
+	    rf.setVerbose(false);
+	    
 	    long start = System.currentTimeMillis();
-		
-//	    ReededFilter rf = new ReededFilter();
-	    ReedingFilter rf = new ReedingFilter();
-		oafResults = rf.filter(sources, targets, propertyName, theta);
+	    
+		oafResults = rf.filter(sources, targets, p.getName(), theta);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 //		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+oafResults.size());
-		System.out.println(theta+"\t"+compTime+"\t"+oafResults.size());
+		System.out.println(compTime+"\t"+oafResults.size());
 		sys_out += theta+"\t"+compTime+"\t"+oafResults.size()+"\n";
 		
 		return oafResults;
 	}
 
-	private static TreeSet<Couple> testPassJoin(String propertyName, double theta) throws IOException {
+	private static TreeSet<Couple> testPassJoin(Property p, double theta) throws IOException {
 
 //		System.out.println(sources.size());
 
 	    TreeSet<Couple> passjResults = null;
 	    
-	    long start = System.currentTimeMillis();
+	    PassJoin pj = new PassJoin(p);
+	    pj.setVerbose(false);
 	    
-	    PassJoin pj = new PassJoin();
-		passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
-				propertyName, theta);
+	    long start = System.currentTimeMillis();
+
+	    passjResults = pj.passJoin(new ArrayList<Resource>(sources), new ArrayList<Resource>(targets),
+				p.getName(), theta);
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 //		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
-		System.out.println(theta+"\t"+compTime+"\t"+passjResults.size());
+		System.out.print(theta+"\t"+compTime+"\t"+passjResults.size()+"\t");
 		sys_out += theta+"\t"+compTime+"\t"+passjResults.size()+"\n";
 		
 		return passjResults;
@@ -336,11 +342,27 @@ public class FiltersTest {
 	 */
 	public static void main(String[] args) throws IOException {
 		
+//		String s = "Guest editorial", t = "Guest Editorial";
+//		Vector<Character> cs = new Vector<Character>();
+//		Vector<Character> ct = new Vector<Character>();
+//		for(int i=0; i<s.length(); i++)
+//			cs.add(s.charAt(i));
+//		for(int i=0; i<t.length(); i++)
+//			ct.add(t.charAt(i));
+//		Vector<Character> ct2 = new Vector<Character>(ct);
+//		for(Character c1 : ct2)
+//			if(cs.remove(c1))
+//				ct.remove(c1);
+//		System.out.println(cs);
+//		System.out.println(ct);
+//		
+//		System.exit(0);
+		
 		String[] dataset = { 
-				"data/1-dblp-acm/sources.csv",
-//				"data/1-dblp-acm/targets.csv",
-//				"data/3-amazon-googleproducts/targets.csv",
-//				"data/4-abt-buy/sources.csv",
+//				"data/1-dblp-acm/sources.csv",
+				"data/1-dblp-acm/targets.csv",
+				"data/3-amazon-googleproducts/targets.csv",
+				"data/4-abt-buy/sources.csv",
 //				"data/5-person1/sources.csv",
 //				"data/6-restaurant/sources.csv",
 //			"data/8-scalability/persons.csv",
@@ -348,10 +370,10 @@ public class FiltersTest {
 //			"data/8-scalability/works.csv",
 		};
 		String[] pname = {
-				"title",
-//				"authors",
-//				"name",
-//				"description",
+//				"title",
+				"authors",
+				"name",
+				"description",
 //				"surname",
 //				"name",
 //			"name",
@@ -359,7 +381,10 @@ public class FiltersTest {
 //			"name",
 		};
 		
-		launchTests(dataset, pname);
+		for(int i=0; i<1; i++) {
+			System.out.println("=== TEST #"+(i+1)+" ===");
+			launchTests(dataset, pname);
+		}
 		
 //		scalabilityTests(dataset, pname);
 		
@@ -374,6 +399,8 @@ public class FiltersTest {
 			
 			clearKnowledgeBases();
 			
+			Property p = new Property(pname[i], Property.TYPE_STRING, i);
+			
 			for(int j=0; j*delta <= sources.size(); j++) {
 				
 				loadKnowledgeBases(dataset[i], dataset[i], j*delta, (j+1)*delta);
@@ -385,7 +412,7 @@ public class FiltersTest {
 //					testPassJoin(pname[i], theta);
 			
 				for(double theta=1; theta<=THETA_MAX; theta*=2)
-					testOurApproachFilter(pname[i], theta);
+					testReededFilter(p, theta);
 	
 				notify(sys_out);
 				sys_out = "\n";
@@ -396,18 +423,21 @@ public class FiltersTest {
 
 	private static void launchTests(String[] dataset, String[] pname) throws IOException {
 		
-		THETA_MAX = 2;
+		THETA_MAX = 5;
 		
 		for(int i=0; i<dataset.length; i++) {
 			clearKnowledgeBases();
 			loadKnowledgeBases(dataset[i], dataset[i]);
 			
-			System.out.println(dataset[i]);
+			Property p = new Property(pname[i], Property.TYPE_STRING, i);
+			
+			System.out.println(dataset[i]+"\t"+pname[i]);
 			sys_out += dataset[i]+"\n";
 		
 //				TreeSet<String> pjs = null, oafs = null;
 
-//			for(double theta=1; theta<=THETA_MAX; theta++) {
+			for(double theta=1; theta<=THETA_MAX; theta++) {
+//				TreeSet<Couple> ed = testEdJoinOnce(p, theta);
 //			    	TreeSet<Couple> pj = 
 //					testPassJoin(pname[i], theta);
 //					pjs = new TreeSet<String>();
@@ -421,20 +451,39 @@ public class FiltersTest {
 //								c.getTarget().getOriginalPropertyValue(pname[i]));
 //					}
 //			}
-		
-			for(double theta=.9; theta<=.9; theta+=.1) {
-				System.out.println("theta = "+theta);
+//		
+//			for(double theta=1; theta<=THETA_MAX; theta++) {
+//				System.out.println("theta = "+theta);
 //			    	TreeSet<Couple> oaf = 
-					testOurApproachFilter(pname[i], theta);
+					TreeSet<Couple> rd = testReededFilter(p, theta);
+//					TreeSet<String> rd_id = new TreeSet<String>();
 //					oafs = new TreeSet<String>();
-//					for(Couple c : oaf) {
-//		//				System.out.println(c.getSource().getID()
-//		//						+ "\t" + c.getTarget().getID()
-//		//						+ "\t" + c.getSource().getOriginalPropertyValue(pname)
-//		//						+ "\t" + c.getTarget().getOriginalPropertyValue(pname)
-//		//						+ "\td = " + c.getDistances().get(0));
+//					for(Couple c : rd) {
+//						rd_id.add(c.toString());
+//						System.out.println(c.getSource().getID()
+//								+ "\t" + c.getTarget().getID()
+//								+ "\t" + c.getSource().getOriginalPropertyValue(pname)
+//								+ "\t" + c.getTarget().getOriginalPropertyValue(pname)
+//								+ "\td = " + c.getDistances().get(0));
 //						oafs.add(c.getSource().getOriginalPropertyValue(pname[i])+"#"+
 //								c.getTarget().getOriginalPropertyValue(pname[i]));
+//					}
+//					for(Couple edc : ed) {
+//						boolean f = false;
+//						for(Couple rdc : rd) {
+//							if(rdc.toString().equals(edc.toString())) {
+//								f = true;
+//								break;
+//							}
+//						}
+//						if(!f) {
+//							System.out.println(edc.getSource().getPropertyValue(pname[i])
+//							+ "\t" + edc.getTarget().getPropertyValue(pname[i])
+//							+ "\td = " + edc.getDistances().get(0));
+//							ReededFilter rf = new ReededFilter();
+//							System.out.println(rf.getDistance(edc.getSource().getPropertyValue(pname[i]), 
+//									edc.getTarget().getPropertyValue(pname[i])));
+//						}
 //					}
 			}
 
@@ -463,7 +512,4 @@ public class FiltersTest {
 					System.out.println(s);
 	}
 
-	public static void append(String s) {
-		sys_out += s;
-	}
 }

@@ -5,6 +5,8 @@
 package acids2;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 
 /**
  *
@@ -15,8 +17,7 @@ public class Couple implements Comparable<Couple> {
     private Resource source;
     private Resource target;
     
-    private ArrayList<Double> similarities;
-    private ArrayList<Double> distances;
+    private HashMap<Integer, Double> distances;
     
     private double gamma;
     
@@ -68,16 +69,9 @@ public class Couple implements Comparable<Couple> {
         this.gamma = gamma;
     }
 
-    public double getSimMean() {
-        double sum = 0.0;
-        for(Double sim : similarities)
-            sum += sim;
-        return sum/similarities.size();
-    }
-
     public double getMeanDist() {
         double sum = 0.0;
-        for(Double sim : distances)
+        for(Double sim : distances.values())
             sum += sim;
         return sum/distances.size();
     }
@@ -89,44 +83,31 @@ public class Couple implements Comparable<Couple> {
     public Resource getTarget() {
         return target;
     }
-
-    public ArrayList<Double> getSimilarities() {
-        return similarities;
-    }
-
+    
 	public ArrayList<Double> getDistances() {
-		return distances;
+		ArrayList<Integer> keys = new ArrayList<Integer>(distances.keySet());
+		ArrayList<Double> values = new ArrayList<Double>();
+		Collections.sort(keys);
+		for(Integer k : keys)
+			values.add(distances.get(k));
+		return values;
 	}
-    
-    public void addSimilarity(double s) {
-        similarities.add(s);
-        double d = s==0 ? Double.POSITIVE_INFINITY : (1.0-s)/s;
-        distances.add(d);
-    }
 
-    public void addDistance(double d) {
-    	double s = d / (1.0 + d);
-        similarities.add(s);
-        distances.add(d);
+    public double getDistanceAt(int index) {
+    	return distances.get(index);
     }
     
-    public void setDistance(double d, int pos) {
-    	distances.set(pos, d);
+    public void setDistance(double d, int index) {
+    	distances.put(index, d);
     }
 
     public Couple(Resource source, Resource target) {
         this.source = source;
         this.target = target;
-        similarities = new ArrayList<Double>();
-        distances = new ArrayList<Double>();
+        distances = new HashMap<Integer, Double>();
         ops = new ArrayList<Operation>();
     }
 
-    public void clearSimilarities() {
-        similarities.clear();
-        distances.clear();
-    }
-    
     public int[] getCountMatrixAsArray(int k) {
         int[] cArr = new int[4096];
         for(Operation op : ops) {
@@ -145,6 +126,12 @@ public class Couple implements Comparable<Couple> {
 //                    h++;
 //                }
         return cArr;
+    }
+    
+    public void info() {
+		for(double d : this.getDistances())
+			System.out.print(d+", ");
+		System.out.println("\t"+this+"\t"+this.getGamma());
     }
 
     @Override
@@ -171,4 +158,12 @@ public class Couple implements Comparable<Couple> {
             return c1.equals(c2);
     	}
     }
+
+	public double getFirstDistance() {
+		int k_min = Integer.MAX_VALUE;
+		for(int k : distances.keySet())
+			if(k < k_min)
+				k_min = k;
+		return distances.get(k_min);
+	}
 }

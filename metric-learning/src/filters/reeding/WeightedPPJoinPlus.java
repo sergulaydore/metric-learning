@@ -16,6 +16,7 @@ import filters.WeightedNgramFilter;
 import acids2.Couple;
 import acids2.Resource;
 
+// TODO extends...
 public class WeightedPPJoinPlus {
 
 	/**
@@ -102,12 +103,14 @@ public class WeightedPPJoinPlus {
 //					System.out.println("t="+t+"\tpy="+py+"\tover="+over+"\talpha="+alpha);
 					if(over >= alpha) {
 						Couple c = new Couple(src.get(xi).r, y.r);
-						ReedingFilter rf = new ReedingFilter();
-						c.addSimilarity(rf.getDistance(src.get(xi).r.getPropertyValue("name"), y.r.getPropertyValue("name")));
+						// TODO replace null with: new Property
+						ReedingFilter rf = new ReedingFilter(null);
+						// TODO replace "0" with: this.property.getIndex();
+						c.setDistance(rf.getDistance(src.get(xi).r.getPropertyValue(propertyName), y.r.getPropertyValue(propertyName)), 0); 
 						results.add(c);
 					} else {
 						if(src.get(xi).r != y.r)
-							System.out.println(over+"\t"+alpha+"\t"+src.get(xi).r.getPropertyValue("name")+" # "+ y.r.getPropertyValue("name"));
+							System.out.println(over+"\t"+alpha+"\t"+src.get(xi).r.getPropertyValue(propertyName)+" # "+ y.r.getPropertyValue(propertyName));
 					}
 				}
 			}
@@ -151,7 +154,7 @@ public class WeightedPPJoinPlus {
 		
 		TreeSet<Couple> res = run(sources, targets, propertyName, theta);
 		for(Couple c : res)
-			System.out.println(c+"\t"+c.getSimilarities().get(0));
+			System.out.println(c+"\t"+c.getDistanceAt(0));
 	}
 
 	private static String[] load() {

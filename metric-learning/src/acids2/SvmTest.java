@@ -32,8 +32,8 @@ public class SvmTest {
 		ArrayList<Couple> neglbl = new ArrayList<Couple>();
 		for(int i=0; i<cx.length; i++) {
 			Couple c = new Couple(new Resource("s"+i), new Resource("t"+i));
-			c.addDistance(cx[i]);
-			c.addDistance(cy[i]);
+			c.setDistance(cx[i], i);
+			c.setDistance(cy[i], i);
 			if(i<3)
 				poslbl.add(c);
 			else
@@ -120,7 +120,7 @@ public class SvmTest {
         for(int i=0; i<size; i++) {
         	node[i] = new svm_node();
         	node[i].index = i;
-        	node[i].value = c.getDistances().get(i);
+        	node[i].value = c.getDistanceAt(i);
         }
         if(svm.svm_predict(model, node) == 1.0)
         	return true;

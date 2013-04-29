@@ -8,6 +8,7 @@ import java.util.TreeSet;
 
 import utility.OrderByLengthAndAlpha;
 import acids2.Couple;
+import acids2.Property;
 import acids2.Resource;
 import filters.WeightedEditDistanceFilter;
 import filters.test.FiltersTest;
@@ -19,6 +20,10 @@ import filters.test.FiltersTest;
  */
 public class PassJoin extends WeightedEditDistanceFilter {
 
+	public PassJoin(Property p) {
+		property = p;
+	}
+	
 	public TreeSet<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, 
 			String propertyName, double theta) {
 		
@@ -55,7 +60,7 @@ public class PassJoin extends WeightedEditDistanceFilter {
 									double d = wed.proximity(s, t);
 									if(d <= theta) {
 										Couple c = new Couple(cand, res);
-										c.addDistance(d);
+										c.setDistance(d, this.property.getIndex());
 										results.add(c);
 									}
 								}
@@ -66,8 +71,8 @@ public class PassJoin extends WeightedEditDistanceFilter {
 			}
 		}
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.print(compTime+"\t");
-		FiltersTest.append(compTime+"\t");
+		if(this.isVerbose())
+			System.out.print(compTime+"\t");
 		
 //		System.out.println("count = "+count);
 		return results;

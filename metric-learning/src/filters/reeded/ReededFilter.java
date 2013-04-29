@@ -5,6 +5,7 @@ import java.util.TreeSet;
 import java.util.Vector;
 
 import acids2.Couple;
+import acids2.Property;
 import acids2.Resource;
 import filters.WeightedEditDistanceFilter;
 
@@ -14,8 +15,9 @@ import filters.WeightedEditDistanceFilter;
  */
 public class ReededFilter extends WeightedEditDistanceFilter {
 	
-	public ReededFilter() {
+	public ReededFilter(Property p) {
 		super();
+		property = p;
 	}
 	
 	@Override
@@ -24,15 +26,39 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 
-		double mw = getMinWeight();
-		double tau = theta / mw;
+		double tau = theta / getMinWeight();
 		
 		long start = System.currentTimeMillis();
-		for(Couple c : intersection)
-			reededCore(c.getSource(), c.getTarget(), propertyName, tau, theta, results);
 		
-		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.println("REEDED: Join done in "+compTime+" seconds.");
+		HashMap<String, Vector<Character>> index = new HashMap<String, Vector<Character>>();
+		for(Couple c : intersection) {
+			Resource s = c.getSource();
+			String sp = s.getPropertyValue(propertyName);
+			Vector<Character> cs;
+			if(!index.containsKey(sp)) {
+				cs = new Vector<Character>();
+				for(int i=0; i<sp.length(); i++)
+					cs.add(sp.charAt(i));
+				index.put(sp, cs);
+			} else
+				cs = index.get(sp);
+			Resource t = c.getTarget();
+			String tp = t.getPropertyValue(propertyName);
+			Vector<Character> ct;
+			if(!index.containsKey(tp)) {
+				ct = new Vector<Character>();
+				for(int i=0; i<tp.length(); i++)
+					ct.add(tp.charAt(i));
+				index.put(tp, ct);
+			} else
+				ct = index.get(tp);
+			reededCore(s, t, sp, tp, cs, ct, tau, theta, results);
+		}
+		
+		if(this.isVerbose()) {
+			double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
+			System.out.println("REEDED: Join done in "+compTime+" seconds.");
+		}	
 		
 		return results;
 	}
@@ -43,58 +69,67 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 		
 		TreeSet<Couple> results = new TreeSet<Couple>();
 
-		double mw = getMinWeight();
-		double tau = theta / mw;
+		double tau = theta / getMinWeight();
 		
 		long start = System.currentTimeMillis();
 		
-		for(Resource s : sources)
-			for(Resource t : targets)
-				reededCore(s, t, propertyName, tau, theta, results);
-		
-		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-		System.out.println("REEDED: Join done in "+compTime+" seconds.");
+		HashMap<String, Vector<Character>> index = new HashMap<String, Vector<Character>>();
+		for(Resource s : sources) {
+			String sp = s.getPropertyValue(propertyName);
+			Vector<Character> cs = new Vector<Character>();
+			for(int i=0; i<sp.length(); i++)
+				cs.add(sp.charAt(i));
+			index.put(sp, cs);
+		}
+		for(Resource t : targets) {
+			String tp = t.getPropertyValue(propertyName);
+			Vector<Character> ct = new Vector<Character>();
+			for(int i=0; i<tp.length(); i++)
+				ct.add(tp.charAt(i));
+			index.put(tp, ct);
+		}
+		for(Resource s : sources) {
+			for(Resource t : targets) {
+				String sp = s.getPropertyValue(propertyName);
+				String tp = t.getPropertyValue(propertyName);
+				reededCore(s, t, sp, tp, index.get(sp), index.get(tp), tau, theta, results);
+			}
+		}
+				
+		if(this.isVerbose()) {
+			double compTime = (System.currentTimeMillis()-start)/1000.0;
+			System.out.println("REEDED: Join done in "+compTime+" seconds.");
+		}
 		
 		return results;
 	}
 	
-	private static Vector<Character> subtract(Vector<Character> cs, Vector<Character> ct) {
-		Vector<Character> res = new Vector<Character>(cs);
+	private double exclDisjSize(Vector<Character> cs, Vector<Character> ct) {
+		Vector<Character> cs2 = new Vector<Character>(cs);
+		Vector<Character> ct2 = new Vector<Character>(ct);
 		for(Character c1 : ct)
-			res.remove(c1);
-		return res;
+			if(cs2.remove(c1))
+				ct2.remove(c1);
+		return cs2.size()+ct2.size();
 	}
 	
-	private void reededCore(Resource s, Resource t, String propertyName, 
+	private void reededCore(Resource s, Resource t, String sp, String tp, Vector<Character> cs, Vector<Character> ct, 
 			double tau, double theta, TreeSet<Couple> results) {
-		String sp = s.getPropertyValue(propertyName);
-		String tp = t.getPropertyValue(propertyName);
+		
 		if(Math.abs(sp.length() - tp.length()) <= tau) {
-			Vector<Character> cs = new Vector<Character>();
-			for(int i=0; i<sp.length(); i++)
-				cs.add(sp.charAt(i));
-			Vector<Character> ct = new Vector<Character>();
-			for(int i=0; i<tp.length(); i++)
-				ct.add(tp.charAt(i));
-			Vector<Character> c = subtract(cs, ct);
-			c.addAll(subtract(ct, cs));
-			double minGap = (int)(c.size() / 2);// + (size % 2) * minInsdel;
-			if(minGap <= tau) {
+			// (...) + (size % 2);
+			if(Math.ceil(exclDisjSize(cs, ct) / 2.0) <= tau) {
 				//  Verification.
 				double d = this.getDistance(sp, tp);
 				if(d <= theta) {
-					Couple cpl = new Couple(s, t);
-					cpl.addDistance(d);
-					results.add(cpl);
+					Couple c = new Couple(s, t);
+					c.setDistance(d, this.property.getIndex());
+					results.add(c);
 				}
 			}
 		}
 		
 	}
 
-	@Override
-	public HashMap<String, Double> getWeights() {
-		return weights;
-	}
 
 }

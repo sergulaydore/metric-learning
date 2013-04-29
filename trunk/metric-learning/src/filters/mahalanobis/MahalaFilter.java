@@ -7,6 +7,7 @@ import java.util.TreeSet;
 import utility.Transform;
 import utility.ValueParser;
 import acids2.Couple;
+import acids2.Property;
 import acids2.Resource;
 import filters.StandardFilter;
 
@@ -16,7 +17,8 @@ public class MahalaFilter extends StandardFilter {
 	
 	// TODO introduce weights and true Mahalanobis calculation
 	
-	public MahalaFilter() {
+	public MahalaFilter(Property p) {
+		property = p;
 	}
 	
 	@Override
@@ -42,11 +44,10 @@ public class MahalaFilter extends StandardFilter {
 		String tp = t.getPropertyValue(pname);
 		double d = getDistance(sp, tp);
 		double theta_d = Transform.toDistance(theta);
-		// couples should be discarded only when there is information about them
-		if(d <= theta_d || Double.isNaN(d)) {
+		if(d <= theta_d) {
 			Couple c = new Couple(s, t);
 			// distance values are then normalized into [0,1]
-			c.addDistance(d);
+			c.setDistance(d, this.property.getIndex());
 			results.add(c);
 		}
 	}
@@ -56,6 +57,7 @@ public class MahalaFilter extends StandardFilter {
 		double sd = ValueParser.parse(sp);
 		double td = ValueParser.parse(tp);
 		if(Double.isNaN(sd) || Double.isNaN(td))
+			// no information means similarity = 0 (value is converted later)
 			return Double.NaN;
 		else
 			return Math.abs(sd-td);

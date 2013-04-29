@@ -100,7 +100,16 @@ public abstract class WeightedEditDistanceFilter extends StandardFilter {
 	}
 
 	@Override
-	public double getDistance(String sp, String tp) {
-		return 1.0 / (1.0 + wed.proximity(sp, tp));
+	public HashMap<String, Double> getWeights() {
+		return weights;
 	}
+
+	@Override
+	public double getDistance(String sp, String tp) {
+		// TODO just for testing REEDED against Modified PassJoin
+		return wed.proximity(sp, tp);
+//		return 1.0 / (1.0 + wed.proximity(sp, tp));
+	}
+	
+	
 }

@@ -33,9 +33,9 @@ public class Test {
 //		String datasetPath = "1-dblp-acm";
 //		String datasetPath = "2-dblp-scholar";
 //		String datasetPath = "4-abt-buy";
-		double th0c = Double.parseDouble(args[1]);
-		int k = Integer.parseInt(args[2]);
-		double beta = Double.parseDouble(args[3]);
+		int k = Integer.parseInt(args[1]);
+		double beta = Double.parseDouble(args[2]);
+		double th0c = Double.parseDouble(args[3]);
 		
 		String sourcePath = "data/" + datasetPath + "/sources.csv";
 		String targetPath = "data/" + datasetPath + "/targets.csv";
@@ -44,8 +44,8 @@ public class Test {
 		String mappingPath = "data/" + datasetPath + "/mapping.csv";
 		loadMappings(mappingPath);
 		
-		System.out.println("th0c = "+th0c+"\tk = "+k+"\tbeta = "+beta);
-		MainAlgorithm.start(sources, targets, th0c, k, beta);
+		System.out.println("k = "+k+"\tbeta = "+beta);
+		MainAlgorithm.start(sources, targets, k, beta, th0c);
 		
 	}
 

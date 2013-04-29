@@ -3,6 +3,7 @@ package filters.reeding;
 import java.util.TreeSet;
 
 import acids2.Couple;
+import acids2.Property;
 import acids2.Resource;
 import filters.WeightedNgramFilter;
 
@@ -14,8 +15,9 @@ import filters.WeightedNgramFilter;
  */
 public class ReedingFilter extends WeightedNgramFilter {
 	
-	public ReedingFilter() {
+	public ReedingFilter(Property p) {
 		super();
+		property = p;
 	}
 	
 	@Override
@@ -71,7 +73,7 @@ public class ReedingFilter extends WeightedNgramFilter {
 			double d = this.getDistance(sp, tp);
 			if(d <= theta) {
 				Couple cpl = new Couple(s, t);
-				cpl.addDistance(d);
+				cpl.setDistance(d, this.property.getIndex());
 				results.add(cpl);
 			}
 		}

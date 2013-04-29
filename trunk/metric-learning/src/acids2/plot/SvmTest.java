@@ -38,9 +38,9 @@ public class SvmTest {
 		ArrayList<Couple> neglbl = new ArrayList<Couple>();
 		for(int i=0; i<cx.length; i++) {
 			Couple c = new Couple(new Resource("s"+i), new Resource("t"+i));
-			c.addDistance(cx[i]);
-			c.addDistance(cy[i]);
-			c.addDistance(cz[i]);
+			c.setDistance(cx[i], i);
+			c.setDistance(cy[i], i);
+			c.setDistance(cz[i], i);
 			if(i<cx.length-1)
 				poslbl.add(c);
 			else

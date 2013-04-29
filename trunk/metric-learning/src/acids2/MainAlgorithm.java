@@ -1,20 +1,20 @@
 package acids2;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.TreeSet;
 
+import org.math.array.LinearAlgebra;
+
 import libsvm.svm;
 import libsvm.svm_model;
 import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
-
-import org.math.array.LinearAlgebra;
-
 import utility.GammaComparator;
 import utility.ValueParser;
 import acids2.plot.Svm3D;
@@ -35,46 +35,43 @@ public class MainAlgorithm {
 	private static int KERNEL = svm_parameter.POLY;
 	private static final int DEGREE = 2;
 	private static final int COEF0 = 0;
+	private static final double GAMMA = 1;
 	
 	// classifier properties
 	private static double[][] sv_d;
 	private static double[] w;
+	private static double[] w_linear;
 	private static double theta0;
 	private static double theta;
-	private static double beta; // TODO call it Delta (Δ)
+	private static double theta_plot;
+	private static double beta;
 	private static int n;
 	/*
-	 * k = 20, theta0 = n-0.5
-	 * 		dblp-acm		~96%
-	 * 		dblp-scholar	~97%
-	 * 		abt-buy			~75%
-	 * 
 	 * XXX is there a correlation between th0c and the similarity mean for each property?
 	 * 
 	 * TODO create Settings static class
 	 * TODO save similarity to array for Octave
 	 */
-	private static double th0c;
-	private static int k;
+	
+	// total number of queries
+	private static int max_queries;
+	// queries per iteration per class (pos|neg)
+	private static int k = 5;
 	
 	// support variables
-	private static final int MAX_QUERIES = 50;
 	private static final int MAX_ITER_PERCEPTRON = 100;
-	private static final int BACKUP_SIZE_RATE = 10;
-	private static int counter = 0; // TODO remove me after linking class to a real oracle
+	private static int query_counter = 0;
 	private static double tp0 = 0, tn0 = 0, fp0 = 0, fn0 = 0;
 	private static svm_node[][] orig_x; 
 
 	private static ArrayList<Property> props = new ArrayList<Property>();
     private static HashMap<Integer, ArrayList<Double>> extrema = new HashMap<Integer, ArrayList<Double>>();
 
-
-    public static void start(TreeSet<Resource> sources, TreeSet<Resource> targets, double _th0c, int _k, double _beta) {
+    
+    public static void start(TreeSet<Resource> sources, TreeSet<Resource> targets, int _queries, double _beta, double _th0c) {
 		long t0 = System.currentTimeMillis(); 
 				
-    	th0c = _th0c;
-    	k = _k;
-    	beta = _beta;
+    	max_queries = _queries;
     	
 		// initialization
 		
@@ -116,173 +113,351 @@ public class MainAlgorithm {
 		w = new double[n];
 		for(int i=0; i<n; i++)
 			w[i] = 1.0;
-		theta0 = (double) n - 0.5; // / 2.0 * th0c;
+		theta0 = (double) n * _th0c;
 		theta = theta0;
+		
+		long prTime = System.currentTimeMillis() - t0, alTime = 0, mlTime = 0;
 		
 		// algorithm
 		
-		TreeSet<Couple> intersection = new TreeSet<Couple>();
-		while(true) {
-			intersection.clear();
-			for(int i=0; i<n; i++) {
-				String pname = propertyNames.get(i);
-				System.out.println("Processing property: "+pname);
-				double thr_i = computeThreshold(i);
-				System.out.println("thr_"+i+" = "+thr_i);
-				if(i==0) // first property works on the entire Cartesian product.
-					intersection = props.get(i).getFilter().filter(sources, targets, pname, thr_i);
-				else
-					merge(intersection, props.get(i).getFilter().filter(intersection, pname, thr_i));
-				System.out.println("intersection size: "+intersection.size());
-			}
-			if(blockingEndCondition(intersection, sources.size()*targets.size()))
-				break;
-			else {
-				beta = beta + 0.1;
-				System.out.println("broadening... beta = "+beta);
-			}
-		}
+		ArrayList<Couple> labelled = new ArrayList<Couple>();
 
-		normalizeNumValues(intersection);
-		
-		ArrayList<Couple> posInformative = new ArrayList<Couple>();
-		ArrayList<Couple> negInformative = new ArrayList<Couple>();
-		
-		for(Couple c : intersection) {
-	        c.setGamma( computeGamma( c.getDistances() ) );
-			if(classify(c))
-				posInformative.add(c);
-			else
-				negInformative.add(c);
-		}
-		System.out.println("theta = "+theta+"\tpos = "+posInformative.size()+"\tneg = "+negInformative.size());
-					
-		Collections.sort(posInformative, new GammaComparator());
-		Collections.sort(negInformative, new GammaComparator());
-				
-		TreeSet<Couple> posMostInformative = new TreeSet<Couple>();
-		TreeSet<Couple> negMostInformative = new TreeSet<Couple>();
-		
-		for(int i=0; i<k; i++) {
-			if(i < posInformative.size())
-				posMostInformative.add(posInformative.get(i));
-			if(i < negInformative.size())
-				negMostInformative.add(negInformative.get(i));
-		}
-		
-		long t1 = System.currentTimeMillis(); 
-		
-		// active learning phase
-		// TODO add big loop
-		ArrayList<Couple> poslbl = new ArrayList<Couple>();
-		ArrayList<Couple> neglbl = new ArrayList<Couple>();
-		for(Couple c : posMostInformative)
-			if(askOracle(c))
-				poslbl.add(c);
-			else
-				neglbl.add(c);
-		for(Couple c : negMostInformative)
-			if(askOracle(c))
-				poslbl.add(c);
-			else
-				neglbl.add(c);
-
-		// search for one more pos/neg example if there are none
-		if(poslbl.isEmpty())
-			for(Couple c : posInformative)
-				if(!posMostInformative.contains(c)) {
-					if(counter >= MAX_QUERIES)
-						break;
-					if(askOracle(c) == true) {
-						poslbl.add(c);
-						break;
-					} else neglbl.add(c);
-				}
-		if(neglbl.isEmpty())
-			for(Couple c : negInformative)
-				if(!negMostInformative.contains(c)) {
-					if(counter >= MAX_QUERIES)
-						break;
-					if(askOracle(c) == false) {
-						neglbl.add(c);
-						break;
-					} else poslbl.add(c);
-				}
-		
-		System.out.println("Pos Labeled:");
-		for(Couple c:poslbl) { 
-			for(double d : c.getDistances())
-				System.out.print(d+", ");
-			System.out.println("\t"+c);
-		}
-		System.out.println("Neg Labeled:");
-		for(Couple c:neglbl) { 
-			for(double d : c.getDistances())
-				System.out.print(d+", ");
-			System.out.println("\t"+c);
-		}
-
-		System.out.println("Labeled pos: "+poslbl.size());
-		System.out.println("Labeled neg: "+neglbl.size());
-        System.out.println("Questions submitted: "+counter);
-		
-		long t2 = System.currentTimeMillis();
-        
-        // perceptron learning phase
-        TreeSet<Couple> fpC = new TreeSet<Couple>();
-        TreeSet<Couple> fnC = new TreeSet<Couple>();
-        for(int i_perc=0; true; i_perc++) {
-        	System.out.println("PERCEPTRON: iteration #"+i_perc);
-        	fnC.clear(); fpC.clear();
-        	tp0 = 0; fp0 = 0; tn0 = 0; fn0 = 0;
-			traceSvm(poslbl, neglbl);
-		
-			for(Couple c : poslbl)
-				if(classify(c))
-					tp0++;
-				else {
-					fn0++;
-					fnC.add(c);
-				}
-			for(Couple c : neglbl)
-				if(classify(c)) {
-					fp0++;
-					fpC.add(c);
-				} else
-					tn0++;
+		for(int i_loop=0; query_counter<max_queries; i_loop++) { // huge loop
 			
-	        if(perceptronEndCondition(i_perc, getFScore(tp0, fp0, tn0, fn0)))
-	        	break;
-	        else {
-	        	updateWeights(fpC, fnC);
-	        	updateSimilarities(fpC, fnC);
-	        }
-	    }
+			System.out.println("\nGrand loop: iteration #"+(i_loop+1));
+			
+			long pr0 = System.currentTimeMillis();
+			
+			TreeSet<Couple> intersection = new TreeSet<Couple>();
+			beta = _beta;
+			
+			big: while(true) {
+				
+				while(true) {
+					intersection.clear();
+					boolean performCartesianP = true;
+					for(int i=0; i<n; i++) {
+						Property p = props.get(i);
+						double theta_i = computeThreshold(i);
+						System.out.println("Property: "+p.getName()+"\ttheta_"+i+" = "+theta_i);
+						if(!p.isNoisy()) {
+							if(performCartesianP) { // first property works on the entire Cartesian product.
+								intersection = p.getFilter().filter(sources, targets, p.getName(), theta_i);
+								performCartesianP = false;
+							} else
+								merge(intersection, p.getFilter().filter(intersection, p.getName(), theta_i), i);
+						}
+						System.out.println("intersection size: "+intersection.size());
+					}
+					for(Couple c : intersection)
+						System.out.println(c.getDistances());
+					if(blockingEndCondition(intersection.size(), sources.size()*targets.size()))
+						break;
+					else {
+						beta = beta + 0.1;
+						System.out.println("Broadening beta ("+beta+")");
+					}
+				}
+
+				for(int i=0; i<n; i++) {
+					Property p = props.get(i);
+					if(p.isNoisy()) {
+						for(Couple c : intersection) {
+							Resource s = c.getSource();
+							Resource t = c.getTarget();
+							double d = props.get(i).getFilter().getDistance(s.getPropertyValue(p.getName()), t.getPropertyValue(p.getName()));
+							c.setDistance(d, p.getIndex());
+						}
+					}
+				}
+				
+				normalizeNumValues(intersection);
+				
+				ArrayList<Couple> posInformative = new ArrayList<Couple>();
+				ArrayList<Couple> negInformative = new ArrayList<Couple>();
+				
+				for(Couple c : intersection) {
+					double gamma = computeGamma( c.getDistances() );
+					if(Double.isNaN(gamma))
+						c.info();
+			        c.setGamma( gamma );
+			        
+					if(classify(c))
+						posInformative.add(c);
+					else
+						negInformative.add(c);
+				}
+				System.out.println("theta = "+theta+"\tpos = "+posInformative.size()+"\tneg = "+negInformative.size());
+				
+				Collections.sort(posInformative, new GammaComparator());
+				Collections.sort(negInformative, new GammaComparator());
+						
+				TreeSet<Couple> posMostInformative = new TreeSet<Couple>();
+				TreeSet<Couple> negMostInformative = new TreeSet<Couple>();
+				
+				for(int i=0; posMostInformative.size() < k && i != posInformative.size(); i++) {
+					Couple c = posInformative.get(i);
+					if(!labelled.contains(c))
+						posMostInformative.add(c);
+				}
+				for(int i=0; negMostInformative.size() < k && i != negInformative.size(); i++) {
+					Couple c = negInformative.get(i);
+					if(!labelled.contains(c))
+						negMostInformative.add(c);
+				}
+				
+				long al0 = System.currentTimeMillis();
+				prTime += al0 - pr0;
+				
+				// active learning phase
+				ArrayList<Couple> poslbl = new ArrayList<Couple>();
+				ArrayList<Couple> neglbl = new ArrayList<Couple>();
+				
+				for(Couple c : labelled)
+					if(c.isPositive())
+						poslbl.add(c);
+					else
+						neglbl.add(c);
+				
+				for(Couple c : posMostInformative)
+					if(askOracle(c))
+						poslbl.add(c);
+					else
+						neglbl.add(c);
+				for(Couple c : negMostInformative)
+					if(askOracle(c))
+						poslbl.add(c);
+					else
+						neglbl.add(c);
+		
+				// search for one more pos/neg example if there are none
+				int n_added = 0;
+				loop: while(poslbl.size() < k) {
+					f0r: for(Couple c : posInformative)
+						if(!poslbl.contains(c) && !neglbl.contains(c)) {
+							if(askOracle(c) == true) {
+								poslbl.add(c);
+								continue loop;
+							} else {
+								n_added++;
+								neglbl.add(c);
+								if(n_added == 2*k)
+									break f0r;
+							}
+						}
+					beta = beta + 0.1;
+					System.out.println("Labeled pos: "+poslbl.size());
+					System.out.println("Labeled neg: "+neglbl.size());
+					System.out.println("Too few positives found. Broadening beta ("+beta+")");
+					labelled.clear();
+					labelled.addAll(poslbl);
+					labelled.addAll(neglbl);
+					alTime += System.currentTimeMillis() - al0;
+					continue big;
+				}
+				n_added = 0;
+				loop: while(neglbl.size() < k) {
+					f0r: for(Couple c : negInformative)
+						if(!poslbl.contains(c) && !neglbl.contains(c)) {
+							if(n_added == k)
+								break f0r;
+							if(askOracle(c) == false) {
+								neglbl.add(c);
+								continue loop;
+							} else {
+								n_added++;
+								poslbl.add(c);
+								if(n_added == 2*k)
+									break f0r;
+							}
+						}
+					beta = beta + 0.1;
+					System.out.println("Labeled pos: "+poslbl.size());
+					System.out.println("Labeled neg: "+neglbl.size());
+					System.out.println("Too few negatives found. Broadening beta ("+beta+")");
+					labelled.clear();
+					labelled.addAll(poslbl);
+					labelled.addAll(neglbl);
+					alTime += System.currentTimeMillis() - al0;
+					continue big;
+				}
+				
+				labelled.clear();
+				labelled.addAll(poslbl);
+				labelled.addAll(neglbl);
+				
+				System.out.println("Pos Labeled:");
+				for(Couple c : poslbl) {
+					for(double d : c.getDistances())
+						System.out.print(d+", ");
+					System.out.println("\t"+c+"\t"+c.getGamma());
+				}
+				System.out.println("Neg Labeled:");
+				for(Couple c : neglbl) {
+					for(double d : c.getDistances())
+						System.out.print(d+", ");
+					System.out.println("\t"+c+"\t"+c.getGamma());
+				}
+		
+				System.out.println("Labeled pos: "+poslbl.size());
+				System.out.println("Labeled neg: "+neglbl.size());
+		        System.out.println("Questions submitted: "+query_counter);
+				
+				long ml0 = System.currentTimeMillis();
+				alTime += ml0 - al0;
+		        
+		        // perceptron learning phase
+		        TreeSet<Couple> fpC = new TreeSet<Couple>();
+		        TreeSet<Couple> fnC = new TreeSet<Couple>();
+		        for(int i_perc=0; true; i_perc++) {
+		        	System.out.println("\nPerceptron: iteration #"+i_perc);
+		        	fnC.clear(); fpC.clear();
+		        	tp0 = 0; fp0 = 0; tn0 = 0; fn0 = 0;
+					traceSvm(poslbl, neglbl);
+				
+					for(Couple c : poslbl)
+						if(classify(c))
+							tp0++;
+						else {
+							fn0++;
+							fnC.add(c);
+						}
+					for(Couple c : neglbl)
+						if(classify(c)) {
+							fp0++;
+							fpC.add(c);
+						} else
+							tn0++;
+					
+			        if(perceptronEndCondition(i_perc, getFScore(tp0, fp0, tn0, fn0)))
+			        	break;
+			        else {
+			        	updateWeights(fpC, fnC);
+			        	updateSimilarities(fpC, fnC);
+			        }
+			    }
+		        
+		        mlTime += System.currentTimeMillis() - ml0;
+		        
+		        break;
+			}
+		}
         
         for(Property p : props)
         	if(p.getDatatype() == Property.TYPE_STRING)
         		System.out.println("WEIGHTS ("+p.getName()+"): "+p.getFilter().getWeights());
         
-		long t3 = System.currentTimeMillis(); 
 		System.out.println("== EXECUTION TIME (seconds) ==");
-		System.out.println("Preparation     \t" + (t1-t0)/1000.0);
-		System.out.println("Active learning \t" + (t2-t1)/1000.0);
-		System.out.println("SVM + Perceptron\t" + (t3-t2)/1000.0);
-		System.out.println("Total exec. time\t" + (t3-t0)/1000.0);
+		System.out.println("Preparation     \t" + prTime/1000.0);
+		System.out.println("Active learning \t" + alTime/1000.0);
+		System.out.println("SVM + Perceptron\t" + mlTime/1000.0);
+		System.out.println("Total exec. time\t" + (prTime+alTime+mlTime)/1000.0);
 
 		// testing...
 		
 		System.out.println("");
 
-		subsetEvaluation(sources, targets);
+		fastEvaluation(sources, targets);
+//		subsetEvaluation(sources, targets);
 //		evaluation(sources, targets);
 		
 		try {
-			Svm3D.draw(model, problem, theta, sv_d, theta0);
+			Svm3D.draw(model, problem, theta_plot, sv_d, theta0);
 		} catch (ArrayIndexOutOfBoundsException e) {
 			System.out.println("3D: no plot (n < 3).");
 		}
 		
+	}
+
+	private static void fastEvaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
+		double tp = 0, tn = 0, fp = 0, fn = 0;
+		
+		ArrayList<String> mapping = Test.getOraclesAnswers();
+		
+		for(String map : mapping) {
+			String[] ids = map.split("#");
+			Resource src = null, tgt = null;
+			for(Resource s : sources)
+				if(s.getID().equals(ids[0])) {
+					src = s;
+					break;
+				}
+			for(Resource t : targets)
+				if(t.getID().equals(ids[1])) {
+					tgt = t;
+					break;
+				}
+			Couple c = new Couple(src, tgt);
+			for(int i=0; i<n; i++) {
+				Property p = props.get(i);
+				double d = p.getFilter().getDistance(src.getPropertyValue(p.getName()), tgt.getPropertyValue(p.getName()));
+                if(p.getDatatype() == Property.TYPE_NUMERIC)
+                	d = normalize(d, i);
+				c.setDistance(d, p.getIndex());
+			}
+			if(classify(c)) {
+				tp++;
+//				System.out.print("pos? ");
+			} else {
+				fn++;
+//				System.out.print("neg? ");
+			}
+//			c.info();
+		}
+
+		TreeSet<Couple> intersection = new TreeSet<Couple>();
+		beta = 0;
+		boolean allInfinite = true, performCartesianP = true;
+		for(int i=0; i<n; i++) {
+			Property p = props.get(i);
+			double theta_i = computeThreshold(i);
+			if(!Double.isInfinite(theta_i))
+				allInfinite = false;
+			System.out.println("Property: "+p.getName()+"\ttheta_"+i+" = "+theta_i);
+			if(!p.isNoisy()) {
+				if(performCartesianP) { // first property works on the entire Cartesian product.
+					intersection = props.get(i).getFilter().filter(sources, targets, p.getName(), theta_i);
+					performCartesianP = false;
+				} else
+					merge(intersection, props.get(i).getFilter().filter(intersection, p.getName(), theta_i), i);
+			}
+			System.out.println("intersection size: "+intersection.size());
+		}
+		if(allInfinite) {
+			System.out.println("Cannot evaluate the dataset, the classifier did not converge.");
+			return;
+		}
+
+		for(int i=0; i<n; i++) {
+			Property p = props.get(i);
+			if(p.isNoisy()) {
+				for(Couple c : intersection) {
+					Resource s = c.getSource();
+					Resource t = c.getTarget();
+					double d = props.get(i).getFilter().getDistance(s.getPropertyValue(p.getName()), t.getPropertyValue(p.getName()));
+					c.setDistance(d, p.getIndex());
+				}
+			}
+		}
+
+		normalizeNumValues(intersection);
+		
+		double negIn = 0;
+		for(Couple c : intersection)
+			if(!askOracle(c.toString())) {
+				if(!classify(c))
+					tn++;
+				else
+					fp++;
+				negIn++;
+			}
+		
+		double negOut = sources.size() * targets.size() - mapping.size() - negIn;
+		
+		tn = tn + negOut;
+		
+		System.out.println();
+		getFScore(tp, fp, tn, fn);
 	}
 
 	private static void updateSimilarities(TreeSet<Couple> fpC,
@@ -328,15 +503,61 @@ public class MainAlgorithm {
 		for(int i=0; i<props.size(); i++)
 			if(props.get(i).getDatatype() == Property.TYPE_NUMERIC)
 				for(Couple c : intersection)
-					c.setDistance( normalize(c.getDistances().get(i), i), i );
+					c.setDistance( normalize(c.getDistanceAt(i), i), i );
 	}
 
 	private static double computeThreshold(int j) {
-		double sum = 0.0;
+		// Default linear classifier...
+		if(model == null) {
+			double sum = n - 1;
+			return theta - beta - sum;
+		}
+		// Polynomial homogeneous II-degree classifiers...
+		// if weight is not positive, property is noisy (no lower bound)
+		if(w_linear[j] <= 0) {
+			props.get(j).setNoisy(true);
+			return 0.0;
+		}
+		ArrayList<String> suffix = buildPhiSuffix();
+    	double r2 = Math.sqrt(2);
+		// optimal values for other coordinates
+		double[] x = new double[n];
+		for(int i=0; i<n; i++)
+//			if(w_linear[i] > 0)
+				x[i] = 1;
+//			else
+//				x[i] = 0;
+		// calculate b, c
+		double b = 0.0, c = 0.0;
+		for(int i=0; i<suffix.size(); i++) {
+			String[] s = suffix.get(i).split(",");
+			if(s[0].equals(""+j))
+				b += w_linear[n + i] * x[Integer.parseInt(s[1])];
+			else if(s[1].equals(""+j))
+				b += w_linear[n + i] * x[Integer.parseInt(s[0])];
+			else
+				c += w_linear[n + i] * x[Integer.parseInt(s[0])] * x[Integer.parseInt(s[1])];
+		}
+		b = b * r2 / w_linear[j];
+		c = c * r2;
+		// quadratic terms
 		for(int i=0; i<n; i++)
 			if(i != j)
-				sum += w[i];
-		return (theta - beta - sum) / w[j];
+				c += w_linear[i]; // * Math.pow(x[i], 2);
+		// is "theta-beta" right for all theta?
+		if(theta > 0)
+			c = (c - (theta-beta)) / w_linear[j];
+		else
+			c = (c - (theta+beta)) / w_linear[j];
+		// II-degree equation formula (a=1)
+		double x1 = (- b + Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
+		double x2 = (- b - Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
+		if(x2 < 0 && 0 < x1 && x1 <= 1) {
+			props.get(j).setNoisy(false);
+			return x1;
+		}
+		props.get(j).setNoisy(true);
+		return Double.NEGATIVE_INFINITY;
 	}
 
 	@SuppressWarnings("unused")
@@ -385,10 +606,13 @@ public class MainAlgorithm {
 	}
 
 
+	@SuppressWarnings("unused")
 	private static void subsetEvaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
 		double tp = tp0, tn = tn0, fp = fp0, fn = fn0;
 		
-		final int BREAK_AT = 20000;
+		System.out.print("Evaluation esteem");
+		
+		final int BREAK_AT = 1000;
         svm_node[][] x2 = new svm_node[problem.l+BREAK_AT][n];
         for(int i=0; i<problem.x.length; i++)
         	for(int j=0; j<problem.x[i].length; j++)
@@ -424,7 +648,7 @@ public class MainAlgorithm {
 					System.out.print(".");
         	}
 		}
-		System.out.println();
+		System.out.println("");
         
 		// recover old values
 		for(int j=0; j<props.size(); j++)
@@ -453,7 +677,7 @@ public class MainAlgorithm {
 	}
 
 	private static double normalize(double value, int j) {
-		// XXX Absent/incomplete information: What to do? 
+		// incomplete information means similarity = 0 
 		if(Double.isNaN(value))
 			return 0.0;
 		ArrayList<Double> ext = extrema.get(j);
@@ -489,12 +713,11 @@ public class MainAlgorithm {
 		System.out.println(ext.toString());
 	}
 
-	private static boolean blockingEndCondition(TreeSet<Couple> intersection, int size) {
-		int backupSetSize = k * BACKUP_SIZE_RATE;
-		return intersection.size() >= backupSetSize || size < backupSetSize;
+	private static boolean blockingEndCondition(int intersSize, int cartesianP) {
+		return intersSize >= 2*k+query_counter || cartesianP < max_queries+query_counter;
 	}
 
-	private static void merge(TreeSet<Couple> intersection, TreeSet<Couple> join) {
+	private static void merge(TreeSet<Couple> intersection, TreeSet<Couple> join, int index) {
 	    Iterator<Couple> e = intersection.iterator();
 	    while (e.hasNext()) {
 	    	Couple c = e.next();
@@ -503,13 +726,13 @@ public class MainAlgorithm {
 	        else {
 	        	for(Couple cj : join)
 	        		if(cj.equals(c)) {
-	        			c.addDistance(cj.getDistances().get(0));
+	        			c.setDistance(cj.getFirstDistance(), index);
 	        			break;
 	        		}
 	        }	
 	    }
 	}
-	
+
 	private static boolean classify(Couple c) {
 		if(model == null) {
 			// Default classifier is always set to linear.
@@ -523,7 +746,7 @@ public class MainAlgorithm {
         for(int i=0; i<n; i++) {
         	node[i] = new svm_node();
         	node[i].index = i;
-        	node[i].value = c.getDistances().get(i);
+        	node[i].value = c.getDistanceAt(i);
         }
         return classify(node);
 	}
@@ -555,33 +778,99 @@ public class MainAlgorithm {
 	            denom += Math.pow(w[i], 2);
 	        }
 	        numer -= theta;
-	        denom = Math.sqrt(denom);
-	        return Math.abs(numer/denom);
+	        return Math.abs(numer/Math.sqrt(denom));
 		}
-		double num = 0.0, den = 0.0;
-		for(int i=0; i<n; i++) {
-			num += w[i] * phi(dist.get(i));
-			den += Math.pow(w[i], 2);
-		}
-		num -= theta;
-		double pInvSum = 0.0;
+		// All classifiers...
+		double[] x = new double[dist.size()];
+		for(int i=0; i<dist.size(); i++)
+			x[i] = dist.get(i);
+		double[] phi = phi(x);
+		int m = phi.length;
+		// calculate Q
+		double[] q = new double[m];
+		for(int i=0; i<m; i++)
+			if(w_linear[i] != 0) {
+				q[i] = theta / w_linear[i];
+				break;
+			}
+		// calculate unit vector wu
+		double norm = 0;
+		for(int i=0; i<m; i++)
+			norm += Math.pow(w_linear[i], 2);
+		norm = Math.sqrt(norm);
+		double[] wu = new double[n];
 		for(int i=0; i<n; i++)
-			pInvSum += Math.pow(dist.get(i) - phiInverse( phi(dist.get(i)) - w[i] * num / den ), 2);
-		return Math.sqrt(pInvSum);
+			wu[i] = w_linear[i] / norm;
+		// calculate t = phi(X - Q) . wu
+		double[] phixq = new double[m];
+		for(int i=0; i<m; i++)
+			phixq[i] = phi[i] - q[i];
+		double t = 0;
+		for(int i=0; i<n; i++)
+			t += phixq[i] * wu[i];
+		// calculate P'
+		double[] p1 = new double[n];
+		for(int i=0; i<n; i++)
+			p1[i] = phi[i] - t * wu[i];
+		// calculate segment XP
+		double sum = 0;
+		for(int i=0; i<n; i++)
+			if(p1[i] >= 0)
+				sum += Math.pow(dist.get(i) - phiInverse(p1[i]), 2);
+			else // anti-transformation is out of the similarity space
+				sum += Math.pow(dist.get(i), 2);
+		sum = Math.sqrt(sum);
+		if(Double.isNaN(sum))
+			System.out.println();
+		return sum;
     }
     
-    private static double phi(double x) {
-    	return Math.pow(x, DEGREE);
+    private static ArrayList<String> buildPhiSuffix() {
+    	ArrayList<String> suffix = new ArrayList<String>();
+    	for(int i=0; i<n-1; i++)
+    		for(int j=i+1; j<n; j++)
+    			suffix.add(i+","+j);
+    	return suffix;
+    }
+    
+    private static double[] phi(double[] x) {
+    	// assuming DEGREE = 2 and COEF0 = 0
+    	int n1 = (int) (Math.pow(n, 2) + n) / 2;
+    	double[] phi = new double[n1];
+    	for(int i=0; i<n; i++)
+    		phi[i] = Math.pow(x[i], 2);
+    	double r2 = Math.sqrt(2);
+    	int p = n;
+    	for(int i=0; i<n-1; i++)
+    		for(int j=i+1; j<n; j++) {
+        		phi[p] = r2 * x[i] * x[j];
+        		p++;
+    		}
+    	return phi;
+    }
+
+    private static double[] phiInverse(double[] x) {
+    	// assuming DEGREE = 2 and COEF0 = 0
+    	int n0 = (int) (Math.sqrt(8 * x.length + 1) - 1) / 2;
+    	double[] t = new double[n0];
+    	for(int i=0; i<n0; i++)
+    		t[i] = phiInverse(x[i]);
+    	return t;
     }
 
     private static double phiInverse(double x) {
-    	return Math.pow(x, 1.0 / DEGREE);
-    }
+		return Math.sqrt(x);
+	}
 
-    private static boolean askOracle(Couple c) {
-    	counter++;
+	private static boolean askOracle(Couple c) {
+    	query_counter++;
     	String ids = c.getSource().getID()+"#"+c.getTarget().getID();
-		return askOracle(ids);
+    	boolean b = askOracle(ids);
+    	if(b)
+    		c.setPositive(true);
+    	else
+    		c.setPositive(false);
+		return b;
 	}
 
     private static boolean askOracle(String ids) {
@@ -628,7 +917,7 @@ public class MainAlgorithm {
         if(KERNEL == svm_parameter.POLY) {
 			parameter.degree = DEGREE; // default: 3
 			parameter.coef0  = COEF0; // default: 0
-			parameter.gamma  = 1; // default: 1/n
+			parameter.gamma  = GAMMA; // default: 1/n
         } 
         parameter.eps = 1E-4;
         model = svm.svm_train(problem, parameter);
@@ -637,22 +926,34 @@ public class MainAlgorithm {
         // sv_coef = ( 1 ; nSV )
         double[][] sv_coef = model.sv_coef;
         
-        // vec = sv' * sv_coef' = (sv_coef * sv)' = ( n ; 1 )
-        double[][] vec = new double[sv[0].length][sv_coef.length];
-        // converting sv to double -> sv_d
-        sv_d = new double[sv.length][sv[0].length];
-        for(int i=0; i<sv.length; i++)
-            for(int j=0; j<sv[i].length; j++)
-                sv_d[i][j] = sv[i][j].value;
-        vec = LinearAlgebra.transpose(LinearAlgebra.times(sv_coef, sv_d));
+        sv_d = new double[sv.length][n];
+        for(int j=0; j<sv.length; j++)
+            for(int i=0; i<sv[j].length; i++)
+            	sv_d[j][i] = sv[j][i].value;
         
-        int signum = (model.label[0] == -1.0) ? 1 : -1;
-        for(int i=0; i<n; i++) {
-            w[i] = signum * vec[i][0];
-            System.out.println("w_"+i+" = "+w[i]);
-        }
+        // w = sv' * sv_coef' = (sv_coef * sv)' = ( n ; 1 )
+        double[][] phis = new double[sv.length][];
+        for(int i=0; i<phis.length; i++)
+        	phis[i] = phi(sv_d[i]);
         
+        w_linear = new double[phis[0].length];
+        
+        for(int i=0; i<phis.length; i++)
+        	for(int j=0; j<phis[i].length; j++)
+        		w_linear[j] += sv_coef[0][i] * phis[i][j];
+        
+        int signum = (model.label[0] == -1.0) ? -1 : 1;
         theta = signum * model.rho[0];
+        
+        // theta is normally at the first member in the classification inequality
+        theta_plot = -theta;
+
+    	for(int i=0; i<w_linear.length; i++) {
+    		w_linear[i] = signum * w_linear[i] / Math.abs(theta);
+    		System.out.println("w_linear["+i+"] = "+w_linear[i]);
+    	}
+		theta = theta / Math.abs(theta);
+
         System.out.println("theta = "+theta);
         
     }

@@ -2,9 +2,7 @@ package acids2;
 
 import filters.StandardFilter;
 import filters.mahalanobis.MahalaFilter;
-import filters.reeded.ReededFilter;
 import filters.reeding.HybridFilter;
-import filters.reeding.ReedingFilter;
 
 public class Property {
 	
@@ -16,6 +14,8 @@ public class Property {
 	private int datatype;
 	private StandardFilter filter;
 
+	private boolean noisy = false;
+
 	private int index;
 
 	public Property(String name, int datatype, int index) {
@@ -25,16 +25,16 @@ public class Property {
 		this.index = index;
 		switch(datatype) {
 		case TYPE_STRING:
-			this.filter = new HybridFilter();
+			this.filter = new HybridFilter(this);
 			break;
 		case TYPE_NUMERIC:
-			this.filter = new MahalaFilter();
+			this.filter = new MahalaFilter(this);
 			break;
 		case TYPE_DATETIME: // TODO datetime similarity and filtering?
-			this.filter = new MahalaFilter();
+			this.filter = new MahalaFilter(this);
 			break;
 		default: // string comparison always works.
-			this.filter = new HybridFilter();
+			this.filter = new HybridFilter(this);
 			break;
 		}
 	}
@@ -79,4 +79,12 @@ public class Property {
 		this.index = index;
 	}
 
+	public boolean isNoisy() {
+		return noisy;
+	}
+
+	public void setNoisy(boolean noisy) {
+		this.noisy = noisy;
+	}
+	
 }

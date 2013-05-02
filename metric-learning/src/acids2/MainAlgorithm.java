@@ -1,14 +1,11 @@
 package acids2;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.TreeSet;
-
-import org.math.array.LinearAlgebra;
 
 import libsvm.svm;
 import libsvm.svm_model;
@@ -149,8 +146,6 @@ public class MainAlgorithm {
 						}
 						System.out.println("intersection size: "+intersection.size());
 					}
-					for(Couple c : intersection)
-						System.out.println(c.getDistances());
 					if(blockingEndCondition(intersection.size(), sources.size()*targets.size()))
 						break;
 					else {
@@ -245,10 +240,16 @@ public class MainAlgorithm {
 									break f0r;
 							}
 						}
-					beta = beta + 0.1;
 					System.out.println("Labeled pos: "+poslbl.size());
 					System.out.println("Labeled neg: "+neglbl.size());
-					System.out.println("Too few positives found. Broadening beta ("+beta+")");
+					System.out.print("Too few positives found. ");
+					if(model == null) {
+						theta = theta + 0.1;
+						System.out.println("Shifting theta ("+theta+")");
+					} else {
+						beta = beta + 0.1;
+						System.out.println("Broadening beta ("+beta+")");
+					}
 					labelled.clear();
 					labelled.addAll(poslbl);
 					labelled.addAll(neglbl);
@@ -271,10 +272,16 @@ public class MainAlgorithm {
 									break f0r;
 							}
 						}
-					beta = beta + 0.1;
 					System.out.println("Labeled pos: "+poslbl.size());
 					System.out.println("Labeled neg: "+neglbl.size());
-					System.out.println("Too few negatives found. Broadening beta ("+beta+")");
+					System.out.print("Too few negatives found. ");
+					if(model == null) {
+						theta = theta - 0.1;
+						System.out.println("Shifting theta ("+theta+")");
+					} else {
+						beta = beta + 0.1;
+						System.out.println("Broadening beta ("+beta+")");
+					}
 					labelled.clear();
 					labelled.addAll(poslbl);
 					labelled.addAll(neglbl);

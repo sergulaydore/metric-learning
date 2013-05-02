@@ -24,6 +24,8 @@ import au.com.bytecode.opencsv.CSVReader;
 import filters.edjoin.EdJoinFilter;
 import filters.passjoin.PassJoin;
 import filters.reeded.ReededFilter;
+import filters.reeding.IndexNgFilter;
+import filters.reeding.NewNgFilter;
 import filters.reeding.ReedingFilter;
 
 
@@ -33,7 +35,7 @@ public class FiltersTest {
 	private static TreeSet<Resource> targets = new TreeSet<Resource>();
 	
 	private static String sys_out = "\n";
-	private static double THETA_MAX;
+	private static double THETA_MIN;
 
     private static void loadKnowledgeBases(String sourcePath, String targetPath) throws IOException {
     	loadKnowledgeBases(sourcePath, targetPath, 0, Integer.MAX_VALUE);
@@ -260,6 +262,42 @@ public class FiltersTest {
 		return passjResults;
 	}
 
+    private static TreeSet<Couple> testNewNgFilter(Property p, double theta) {
+	    TreeSet<Couple> results = null;
+	    
+	    NewNgFilter ngf = new NewNgFilter(p);
+	    ngf.setVerbose(false);
+	    
+	    long start = System.currentTimeMillis();
+
+	    results = ngf.filter(sources, targets, p.getName(), theta);
+		
+		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
+//		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
+		System.out.print(theta+"\t"+compTime+"\t"+results.size()+"\t");
+		sys_out += theta+"\t"+compTime+"\t"+results.size()+"\n";
+		
+		return results;
+	}
+    
+    private static TreeSet<Couple> testIndexNgFilter(Property p, double theta) {
+	    TreeSet<Couple> results = null;
+	    
+	    IndexNgFilter ngf = new IndexNgFilter(p);
+	    ngf.setVerbose(false);
+	    
+	    long start = System.currentTimeMillis();
+
+	    results = ngf.filter(sources, targets, p.getName(), theta);
+		
+		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
+//		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
+		System.out.print(theta+"\t"+compTime+"\t"+results.size()+"\t");
+		sys_out += theta+"\t"+compTime+"\t"+results.size()+"\n";
+		
+		return results;
+	}
+
     @SuppressWarnings("unused")
 	private static TreeSet<Couple> testQuadraticJoin(String propertyName, double theta) throws IOException {
 		
@@ -360,8 +398,9 @@ public class FiltersTest {
 		
 		String[] dataset = { 
 //				"data/1-dblp-acm/sources.csv",
-				"data/1-dblp-acm/targets.csv",
-				"data/3-amazon-googleproducts/targets.csv",
+//				"data/1-dblp-acm/targets.csv",
+//				"data/2-dblp-scholar/targets.csv",
+//				"data/3-amazon-googleproducts/targets.csv",
 				"data/4-abt-buy/sources.csv",
 //				"data/5-person1/sources.csv",
 //				"data/6-restaurant/sources.csv",
@@ -371,8 +410,9 @@ public class FiltersTest {
 		};
 		String[] pname = {
 //				"title",
-				"authors",
-				"name",
+//				"authors",
+//				"title",
+//				"name",
 				"description",
 //				"surname",
 //				"name",
@@ -393,7 +433,7 @@ public class FiltersTest {
 	private static void scalabilityTests(String[] dataset, String[] pname) throws IOException {
 		
 		int delta = 50000;
-		THETA_MAX = 8;
+		THETA_MIN = 8;
 		
 		for(int i=0; i<dataset.length; i++) {
 			
@@ -411,7 +451,7 @@ public class FiltersTest {
 //				for(double theta=1; theta<=THETA_MAX; theta*=2)
 //					testPassJoin(pname[i], theta);
 			
-				for(double theta=1; theta<=THETA_MAX; theta*=2)
+				for(double theta=1; theta<=THETA_MIN; theta*=2)
 					testReededFilter(p, theta);
 	
 				notify(sys_out);
@@ -423,7 +463,7 @@ public class FiltersTest {
 
 	private static void launchTests(String[] dataset, String[] pname) throws IOException {
 		
-		THETA_MAX = 5;
+		THETA_MIN = 0.5;
 		
 		for(int i=0; i<dataset.length; i++) {
 			clearKnowledgeBases();
@@ -436,7 +476,10 @@ public class FiltersTest {
 		
 //				TreeSet<String> pjs = null, oafs = null;
 
-			for(double theta=1; theta<=THETA_MAX; theta++) {
+			for(double theta=1; theta>=THETA_MIN; theta-=0.1) {
+				TreeSet<Couple> inf = testIndexNgFilter(p, theta);
+				TreeSet<Couple> ngf = testNewNgFilter(p, theta);
+				
 //				TreeSet<Couple> ed = testEdJoinOnce(p, theta);
 //			    	TreeSet<Couple> pj = 
 //					testPassJoin(pname[i], theta);
@@ -455,7 +498,7 @@ public class FiltersTest {
 //			for(double theta=1; theta<=THETA_MAX; theta++) {
 //				System.out.println("theta = "+theta);
 //			    	TreeSet<Couple> oaf = 
-					TreeSet<Couple> rd = testReededFilter(p, theta);
+//					TreeSet<Couple> rd = testReededFilter(p, theta);
 //					TreeSet<String> rd_id = new TreeSet<String>();
 //					oafs = new TreeSet<String>();
 //					for(Couple c : rd) {
@@ -499,7 +542,7 @@ public class FiltersTest {
 		}
 	}
 
-    @SuppressWarnings("unused")
+	@SuppressWarnings("unused")
 	private static void crossValidate(TreeSet<String> pjs, TreeSet<String> oafs) {
 			System.out.println("\nPJ but not OAF");
 			for(String s : pjs)

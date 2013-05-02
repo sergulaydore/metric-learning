@@ -45,12 +45,14 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 		return 2 * wint / (w1 + w2);
 	}
 
-	private ArrayList<String> intersect(ArrayList<String> set1, ArrayList<String> set2) {
+	protected ArrayList<String> intersect(ArrayList<String> set1, ArrayList<String> set2) {
 		ArrayList<String> intset = new ArrayList<String>(set1);
-		ArrayList<String> temp = new ArrayList<String>(set2);
+		ArrayList<String> temp = new ArrayList<String>();
+		for(String s : set2)
+			temp.add(s.toLowerCase().trim());
 	    Iterator<String> e = intset.iterator();
 	    while (e.hasNext()) {
-	    	String item = e.next();
+	    	String item = e.next().toLowerCase().trim();
 	        if (!temp.contains(item))
 		        e.remove();
 	        else
@@ -68,7 +70,7 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 		return ngrams;
 	}
 
-	private double getWeight(String ng) {
+	protected double getWeight(String ng) {
 		Double d = weights.get(ng);
 		if(d == null)
 			return 1.0;
@@ -133,8 +135,7 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 	
 	@Override
 	public double getDistance(String sp, String tp) {
-		// default is trigram
-		return distance(sp, tp, 3);
+		return distance(sp, tp, n);
 	}
 
 }

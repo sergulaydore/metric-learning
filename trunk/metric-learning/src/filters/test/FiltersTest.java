@@ -262,7 +262,7 @@ public class FiltersTest {
 		return passjResults;
 	}
 
-    private static TreeSet<Couple> testNewNgFilter(Property p, double theta) {
+    private static double testNewNgFilter(Property p, double theta) {
 	    TreeSet<Couple> results = null;
 	    
 	    NewNgFilter ngf = new NewNgFilter(p);
@@ -274,10 +274,10 @@ public class FiltersTest {
 		
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 //		System.out.println("theta = "+theta+"\t\tΔt = "+compTime+"\t\t|R| = "+passjResults.size());
-		System.out.print(theta+"\t"+compTime+"\t"+results.size()+"\t");
+		System.out.println(theta+"\t"+compTime+"\t"+results.size()+"\t");
 		sys_out += theta+"\t"+compTime+"\t"+results.size()+"\n";
 		
-		return results;
+		return compTime;
 	}
     
     private static TreeSet<Couple> testIndexNgFilter(Property p, double theta) {
@@ -401,8 +401,8 @@ public class FiltersTest {
 //				"data/1-dblp-acm/targets.csv",
 //				"data/2-dblp-scholar/targets.csv",
 //				"data/3-amazon-googleproducts/targets.csv",
-				"data/4-abt-buy/sources.csv",
-//				"data/5-person1/sources.csv",
+//				"data/4-abt-buy/sources.csv",
+				"data/5-person1/sources.csv",
 //				"data/6-restaurant/sources.csv",
 //			"data/8-scalability/persons.csv",
 //			"data/8-scalability/places.csv",
@@ -413,19 +413,23 @@ public class FiltersTest {
 //				"authors",
 //				"title",
 //				"name",
-				"description",
-//				"surname",
+//				"name",
+				"surname",
 //				"name",
 //			"name",
 //			"name",
 //			"name",
 		};
 		
-		for(int i=0; i<1; i++) {
+		final int TOT = 5;
+		double avg = 0;
+		for(int i=0; i<TOT+1; i++) {
 			System.out.println("=== TEST #"+(i+1)+" ===");
-			launchTests(dataset, pname);
+			double time = launchTests(dataset, pname);
+			if(i > 0)
+				avg += time;
 		}
-		
+		System.out.println("avg = "+(avg/TOT));
 //		scalabilityTests(dataset, pname);
 		
 	}
@@ -461,9 +465,10 @@ public class FiltersTest {
 		}
 	}
 
-	private static void launchTests(String[] dataset, String[] pname) throws IOException {
+	private static double launchTests(String[] dataset, String[] pname) throws IOException {
 		
-		THETA_MIN = 0.5;
+		THETA_MIN = 0.9;
+		double ngf = Double.NaN;
 		
 		for(int i=0; i<dataset.length; i++) {
 			clearKnowledgeBases();
@@ -475,10 +480,9 @@ public class FiltersTest {
 			sys_out += dataset[i]+"\n";
 		
 //				TreeSet<String> pjs = null, oafs = null;
-
-			for(double theta=1; theta>=THETA_MIN; theta-=0.1) {
-				TreeSet<Couple> inf = testIndexNgFilter(p, theta);
-				TreeSet<Couple> ngf = testNewNgFilter(p, theta);
+			for(double theta=0.9; theta>=THETA_MIN; theta-=0.1) {
+//				TreeSet<Couple> inf = testIndexNgFilter(p, theta);
+				ngf = testNewNgFilter(p, theta);
 				
 //				TreeSet<Couple> ed = testEdJoinOnce(p, theta);
 //			    	TreeSet<Couple> pj = 
@@ -540,6 +544,7 @@ public class FiltersTest {
 //			notify(sys_out);
 			sys_out = "\n";
 		}
+		return ngf;
 	}
 
 	@SuppressWarnings("unused")

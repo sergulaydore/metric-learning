@@ -90,6 +90,8 @@ public class HybridFilter extends WeightedNgramFilter {
 		for(Resource t : targets) {
 			String tp = t.getPropertyValue(propertyName);
 			Vector<Character> ct = new Vector<Character>();
+			if(tp == null)
+				System.out.println(t.getID());
 			for(int i=0; i<tp.length(); i++)
 				ct.add(tp.charAt(i));
 			index.put(tp, ct);

@@ -1,5 +1,7 @@
 package acids2;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,6 +21,7 @@ import acids2.test.Test;
 import filters.StandardFilter;
 import filters.WeightedNgramFilter;
 import filters.mahalanobis.MahalaFilter;
+import filters.reeding.NewNgFilter;
 
 /**
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
@@ -52,11 +55,12 @@ public class MainAlgorithm {
 	
 	// total number of queries
 	private static int max_queries;
+	// maximum number of iterations for perceptron
+	private static int max_iter_perceptron;
 	// queries per iteration per class (pos|neg)
 	private static int k = 5;
 	
 	// support variables
-	private static final int MAX_ITER_PERCEPTRON = 100;
 	private static int query_counter = 0;
 	private static double tp0 = 0, tn0 = 0, fp0 = 0, fn0 = 0;
 	private static svm_node[][] orig_x; 
@@ -65,11 +69,13 @@ public class MainAlgorithm {
     private static HashMap<Integer, ArrayList<Double>> extrema = new HashMap<Integer, ArrayList<Double>>();
 
     
-    public static void start(TreeSet<Resource> sources, TreeSet<Resource> targets, int _queries, double _beta, double _th0c) {
+    public static void start(TreeSet<Resource> sources, TreeSet<Resource> targets, int _queries, double _beta, double _th0c,
+    		int _mip) {
 		long t0 = System.currentTimeMillis(); 
 				
     	max_queries = _queries;
     	
+    	max_iter_perceptron = _mip;
 		// initialization
 		
 		ArrayList<String> propertyNames;
@@ -130,14 +136,17 @@ public class MainAlgorithm {
 			
 			big: while(true) {
 				
+				boolean allInfinite;
 				while(true) {
 					intersection.clear();
 					boolean performCartesianP = true;
+					allInfinite = true;
 					for(int i=0; i<n; i++) {
 						Property p = props.get(i);
-						double theta_i = computeThreshold(i);
+						double theta_i = computeMonteCarlo(i); // computeThreshold(i);
 						System.out.println("Property: "+p.getName()+"\ttheta_"+i+" = "+theta_i);
 						if(!p.isNoisy()) {
+							allInfinite = false;
 							if(performCartesianP) { // first property works on the entire Cartesian product.
 								intersection = p.getFilter().filter(sources, targets, p.getName(), theta_i);
 								performCartesianP = false;
@@ -146,10 +155,18 @@ public class MainAlgorithm {
 						}
 						System.out.println("intersection size: "+intersection.size());
 					}
+					if(allInfinite) { // solves the problem when there are no thresholds
+						Property p = props.get(0);
+						double theta_i = theta0 - beta - n + 1;
+						System.out.println("Default. Property: "+p.getName()+"\ttheta_"+0+" = "+theta_i);
+						intersection = p.getFilter().filter(sources, targets, p.getName(), theta_i);
+						p.setNoisy(false);
+						System.out.println("intersection size: "+intersection.size());
+					}
 					if(blockingEndCondition(intersection.size(), sources.size()*targets.size()))
 						break;
 					else {
-						beta = beta + 0.1;
+						beta = beta + _beta;
 						System.out.println("Broadening beta ("+beta+")");
 					}
 				}
@@ -227,7 +244,7 @@ public class MainAlgorithm {
 		
 				// search for one more pos/neg example if there are none
 				int n_added = 0;
-				loop: while(poslbl.size() < k) {
+				loop: while(poslbl.size() < 1) {
 					f0r: for(Couple c : posInformative)
 						if(!poslbl.contains(c) && !neglbl.contains(c)) {
 							if(askOracle(c) == true) {
@@ -244,10 +261,10 @@ public class MainAlgorithm {
 					System.out.println("Labeled neg: "+neglbl.size());
 					System.out.print("Too few positives found. ");
 					if(model == null) {
-						theta = theta + 0.1;
+						theta = theta + _beta;
 						System.out.println("Shifting theta ("+theta+")");
 					} else {
-						beta = beta + 0.1;
+						beta = beta + _beta;
 						System.out.println("Broadening beta ("+beta+")");
 					}
 					labelled.clear();
@@ -257,7 +274,7 @@ public class MainAlgorithm {
 					continue big;
 				}
 				n_added = 0;
-				loop: while(neglbl.size() < k) {
+				loop: while(neglbl.size() < 1) {
 					f0r: for(Couple c : negInformative)
 						if(!poslbl.contains(c) && !neglbl.contains(c)) {
 							if(n_added == k)
@@ -276,10 +293,10 @@ public class MainAlgorithm {
 					System.out.println("Labeled neg: "+neglbl.size());
 					System.out.print("Too few negatives found. ");
 					if(model == null) {
-						theta = theta - 0.1;
+						theta = theta - _beta;
 						System.out.println("Shifting theta ("+theta+")");
 					} else {
-						beta = beta + 0.1;
+						beta = beta + _beta;
 						System.out.println("Broadening beta ("+beta+")");
 					}
 					labelled.clear();
@@ -320,8 +337,9 @@ public class MainAlgorithm {
 		        	System.out.println("\nPerceptron: iteration #"+i_perc);
 		        	fnC.clear(); fpC.clear();
 		        	tp0 = 0; fp0 = 0; tn0 = 0; fn0 = 0;
-					traceSvm(poslbl, neglbl);
-				
+		        	
+		        	boolean classSucceed = traceSvm(poslbl, neglbl);
+		        	
 					for(Couple c : poslbl)
 						if(classify(c))
 							tp0++;
@@ -336,7 +354,7 @@ public class MainAlgorithm {
 						} else
 							tn0++;
 					
-			        if(perceptronEndCondition(i_perc, getFScore(tp0, fp0, tn0, fn0)))
+			        if(perceptronEndCondition(classSucceed, i_perc, getFScore(tp0, fp0, tn0, fn0)))
 			        	break;
 			        else {
 			        	updateWeights(fpC, fnC);
@@ -364,19 +382,22 @@ public class MainAlgorithm {
 		
 		System.out.println("");
 
-		fastEvaluation(sources, targets);
-//		subsetEvaluation(sources, targets);
+		if( !fastEvaluation(sources, targets) )
+			subsetEvaluation(sources, targets);
+		
 //		evaluation(sources, targets);
 		
+		createOctaveScript(sources, targets, props);
+		
 		try {
-			Svm3D.draw(model, problem, theta_plot, sv_d, theta0);
+//			Svm3D.draw(model, problem, theta_plot, sv_d, theta0);
 		} catch (ArrayIndexOutOfBoundsException e) {
 			System.out.println("3D: no plot (n < 3).");
 		}
 		
 	}
 
-	private static void fastEvaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
+	private static boolean fastEvaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
 		double tp = 0, tn = 0, fp = 0, fn = 0;
 		
 		ArrayList<String> mapping = Test.getOraclesAnswers();
@@ -402,14 +423,10 @@ public class MainAlgorithm {
                 	d = normalize(d, i);
 				c.setDistance(d, p.getIndex());
 			}
-			if(classify(c)) {
+			if(classify(c))
 				tp++;
-//				System.out.print("pos? ");
-			} else {
+			else
 				fn++;
-//				System.out.print("neg? ");
-			}
-//			c.info();
 		}
 
 		TreeSet<Couple> intersection = new TreeSet<Couple>();
@@ -417,22 +434,36 @@ public class MainAlgorithm {
 		boolean allInfinite = true, performCartesianP = true;
 		for(int i=0; i<n; i++) {
 			Property p = props.get(i);
-			double theta_i = computeThreshold(i);
+			double theta_i = computeMonteCarlo(i); // computeThreshold(i);
 			if(!Double.isInfinite(theta_i))
 				allInfinite = false;
 			System.out.println("Property: "+p.getName()+"\ttheta_"+i+" = "+theta_i);
 			if(!p.isNoisy()) {
 				if(performCartesianP) { // first property works on the entire Cartesian product.
-					intersection = props.get(i).getFilter().filter(sources, targets, p.getName(), theta_i);
+					if(p.getDatatype() == Property.TYPE_STRING) {
+						NewNgFilter ngf = new NewNgFilter(p);
+						ngf.setWeights(p.getFilter().getWeights());
+						intersection = ngf.filter(sources, targets, p.getName(), theta_i);
+					} else {
+						intersection = p.getFilter().filter(sources, targets, p.getName(), theta_i);
+					}
 					performCartesianP = false;
-				} else
-					merge(intersection, props.get(i).getFilter().filter(intersection, p.getName(), theta_i), i);
+				} else {
+					if(p.getDatatype() == Property.TYPE_STRING) {
+						NewNgFilter ngf = new NewNgFilter(p);
+						ngf.setWeights(p.getFilter().getWeights());
+						merge(intersection, ngf.filter(intersection, p.getName(), theta_i), i);
+					} else {
+						merge(intersection, p.getFilter().filter(intersection, p.getName(), theta_i), i);
+					}
+				}
 			}
 			System.out.println("intersection size: "+intersection.size());
 		}
 		if(allInfinite) {
-			System.out.println("Cannot evaluate the dataset, the classifier did not converge.");
-			return;
+			System.out.println("Cannot evaluate precision, no thresholds available.");
+			getFScore(tp, fp, tn, fn);
+			return false;
 		}
 
 		for(int i=0; i<n; i++) {
@@ -465,6 +496,8 @@ public class MainAlgorithm {
 		
 		System.out.println();
 		getFScore(tp, fp, tn, fn);
+		
+		return true;
 	}
 
 	private static void updateSimilarities(TreeSet<Couple> fpC,
@@ -501,8 +534,8 @@ public class MainAlgorithm {
 		}
 	}
 
-	private static boolean perceptronEndCondition(int i_perc, double f1) {
-		return i_perc >= MAX_ITER_PERCEPTRON || f1 == 1.0;
+	private static boolean perceptronEndCondition(boolean cl, int i_perc, double f1) {
+		return !cl || i_perc >= max_iter_perceptron || f1 == 1.0;
 	}
 
 	private static void normalizeNumValues(TreeSet<Couple> intersection) {
@@ -513,59 +546,92 @@ public class MainAlgorithm {
 					c.setDistance( normalize(c.getDistanceAt(i), i), i );
 	}
 
-	private static double computeThreshold(int j) {
-		// Default linear classifier...
-		if(model == null) {
-			double sum = n - 1;
-			return theta - beta - sum;
-		}
-		// Polynomial homogeneous II-degree classifiers...
-		// if weight is not positive, property is noisy (no lower bound)
-		if(w_linear[j] <= 0) {
-			props.get(j).setNoisy(true);
-			return 0.0;
-		}
-		ArrayList<String> suffix = buildPhiSuffix();
-    	double r2 = Math.sqrt(2);
-		// optimal values for other coordinates
-		double[] x = new double[n];
-		for(int i=0; i<n; i++)
-//			if(w_linear[i] > 0)
-				x[i] = 1;
-//			else
-//				x[i] = 0;
-		// calculate b, c
-		double b = 0.0, c = 0.0;
-		for(int i=0; i<suffix.size(); i++) {
-			String[] s = suffix.get(i).split(",");
-			if(s[0].equals(""+j))
-				b += w_linear[n + i] * x[Integer.parseInt(s[1])];
-			else if(s[1].equals(""+j))
-				b += w_linear[n + i] * x[Integer.parseInt(s[0])];
+    private static double computeThreshold(int j) {
+        // Default linear classifier...
+        if(model == null) {
+			double sum = 0;
+			for(int i=0; i<n; i++)
+				if(i != j)
+					sum += w[i];
+			double d = (theta - sum) / w[j] - beta;
+			if(d <= 0)
+				props.get(j).setNoisy(true);
 			else
-				c += w_linear[n + i] * x[Integer.parseInt(s[0])] * x[Integer.parseInt(s[1])];
+				props.get(j).setNoisy(false);
+			return d;
+        }
+        // Polynomial homogeneous II-degree classifiers...
+        // if weight is not positive, property is noisy (no lower bound)
+        if(w_linear[j] <= 0) {
+                props.get(j).setNoisy(true);
+                return 0.0;
+        }
+        ArrayList<String> suffix = buildPhiSuffix();
+        double r2 = Math.sqrt(2);
+        // optimal values for other coordinates
+        double[] x = new double[n];
+        for(int i=0; i<n; i++)
+//              if(w_linear[i] > 0)
+                        x[i] = 1;
+//              else
+//                      x[i] = 0;
+        // calculate b, c
+        double b = 0.0, c = 0.0;
+        for(int i=0; i<suffix.size(); i++) {
+                String[] s = suffix.get(i).split(",");
+                if(s[0].equals(""+j))
+                        b += w_linear[n + i] * x[Integer.parseInt(s[1])];
+                else if(s[1].equals(""+j))
+                        b += w_linear[n + i] * x[Integer.parseInt(s[0])];
+                else
+                        c += w_linear[n + i] * x[Integer.parseInt(s[0])] * x[Integer.parseInt(s[1])];
+        }
+        b = b * r2 / w_linear[j];
+        c = c * r2;
+        // quadratic terms
+        for(int i=0; i<n; i++)
+                if(i != j)
+                        c += w_linear[i]; // * Math.pow(x[i], 2);
+        // is "theta-beta" right for all theta?
+        if(theta > 0)
+                c = (c - (theta)) / w_linear[j];
+        else
+                c = (c - (theta)) / w_linear[j];
+        // II-degree equation formula (a=1)
+        double x1 = (- b + Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
+        double x2 = (- b - Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
+        if(x2 < 0 && 0 < x1 && x1 <= 1) {
+                props.get(j).setNoisy(false);
+                return x1 - beta;
+        }
+        props.get(j).setNoisy(true);
+        return Double.NEGATIVE_INFINITY;
+    }
+
+	private static double computeMonteCarlo(int j) {
+		if(model == null)
+			return computeThreshold(j);
+		double min = 1;
+		for(int a=0; a<10000; a++) {
+			double[] x = new double[n];
+			for(int i=0; i<n; i++)
+				x[i] = Math.random();
+			if(classify(x)) {
+				if(x[j] < min)
+					min = x[j];
+			}
 		}
-		b = b * r2 / w_linear[j];
-		c = c * r2;
-		// quadratic terms
-		for(int i=0; i<n; i++)
-			if(i != j)
-				c += w_linear[i]; // * Math.pow(x[i], 2);
-		// is "theta-beta" right for all theta?
-		if(theta > 0)
-			c = (c - (theta-beta)) / w_linear[j];
-		else
-			c = (c - (theta+beta)) / w_linear[j];
-		// II-degree equation formula (a=1)
-		double x1 = (- b + Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
-		double x2 = (- b - Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
-		if(x2 < 0 && 0 < x1 && x1 <= 1) {
+		min = (int)((min-beta)*100) / 100.0;
+		if(min < 0.1) {
+			min = Double.NEGATIVE_INFINITY;
+			props.get(j).setNoisy(true);
+		} else {
 			props.get(j).setNoisy(false);
-			return x1;
 		}
-		props.get(j).setNoisy(true);
-		return Double.NEGATIVE_INFINITY;
+		System.out.println("MC method for "+j+" = "+min);
+		return min;
 	}
+
 
 	@SuppressWarnings("unused")
 	private static void evaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
@@ -613,13 +679,13 @@ public class MainAlgorithm {
 	}
 
 
-	@SuppressWarnings("unused")
 	private static void subsetEvaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
-		double tp = tp0, tn = tn0, fp = fp0, fn = fn0;
+//		double tp = tp0, tn = tn0, fp = fp0, fn = fn0;
+		double tp = 0, tn = 0, fp = 0, fn = 0;
 		
-		System.out.print("Evaluation esteem");
+		System.out.print("\nEvaluation esteem");
 		
-		final int BREAK_AT = 1000;
+		final int BREAK_AT = 100000;
         svm_node[][] x2 = new svm_node[problem.l+BREAK_AT][n];
         for(int i=0; i<problem.x.length; i++)
         	for(int j=0; j<problem.x[i].length; j++)
@@ -836,7 +902,8 @@ public class MainAlgorithm {
     	ArrayList<String> suffix = new ArrayList<String>();
     	for(int i=0; i<n-1; i++)
     		for(int j=i+1; j<n; j++)
-    			suffix.add(i+","+j);
+    			if(i != j)
+    				suffix.add(i+","+j);
     	return suffix;
     }
     
@@ -854,15 +921,6 @@ public class MainAlgorithm {
         		p++;
     		}
     	return phi;
-    }
-
-    private static double[] phiInverse(double[] x) {
-    	// assuming DEGREE = 2 and COEF0 = 0
-    	int n0 = (int) (Math.sqrt(8 * x.length + 1) - 1) / 2;
-    	double[] t = new double[n0];
-    	for(int i=0; i<n0; i++)
-    		t[i] = phiInverse(x[i]);
-    	return t;
     }
 
     private static double phiInverse(double x) {
@@ -884,7 +942,84 @@ public class MainAlgorithm {
 		return Test.askOracle(ids); // TODO remove me & add interaction
 	}
 
-    private static void traceSvm(ArrayList<Couple> poslbl, ArrayList<Couple> neglbl) {
+	private static void createOctaveScript(TreeSet<Resource> sources, TreeSet<Resource> targets, ArrayList<Property> props) {
+		String[] xp = new String[n];
+		String[] xn = new String[n];
+		for(int i=0; i<n; i++) {
+			xp[i] = "x"+i+"p = [";
+			xn[i] = "x"+i+"n = [";
+		}
+		int NEGATIVES = 5000;
+		ArrayList<String> mapping = Test.getOraclesAnswers();
+		
+		for(String map : mapping) {
+			String[] ids = map.split("#");
+			Resource src = null, tgt = null;
+			for(Resource s : sources)
+				if(s.getID().equals(ids[0])) {
+					src = s;
+					break;
+				}
+			for(Resource t : targets)
+				if(t.getID().equals(ids[1])) {
+					tgt = t;
+					break;
+				}
+			for(int i=0; i<n; i++) {
+				Property p = props.get(i);
+				double d = p.getFilter().getDistance(src.getPropertyValue(p.getName()), tgt.getPropertyValue(p.getName()));
+                if(p.getDatatype() == Property.TYPE_NUMERIC)
+                	d = normalize(d, i);
+                xp[i] += d + " ";
+			}
+		}
+
+		String[] names = new String[n];
+		StandardFilter[] filters = new StandardFilter[n];
+		for(int i=0; i<n; i++) {
+			filters[i] = props.get(i).getFilter();
+			names[i] = props.get(i).getName();
+		}
+		ArrayList<Resource> src = new ArrayList<Resource>(sources);
+		ArrayList<Resource> tgt = new ArrayList<Resource>(targets);
+		
+		for(int c=0; c<NEGATIVES; c++) {
+			Resource s = src.get((int) (src.size()*Math.random()));
+			Resource t = tgt.get((int) (tgt.size()*Math.random()));
+			double[] d = new double[n];
+			for(int i=0; i<n; i++) {
+				double sim = filters[i].getDistance(s.getPropertyValue(names[i]), t.getPropertyValue(names[i]));
+                if(props.get(i).getDatatype() == Property.TYPE_NUMERIC)
+                	sim = normalize(sim, i);
+				d[i] = Double.isNaN(sim) ? 0 : sim;
+			}
+			if(!askOracle(s.getID()+"#"+t.getID())) {
+				for(int i=0; i<n; i++)
+					xn[i] += d[i] + " ";
+			} else c--;
+		}
+		System.out.println();
+		
+		String points = "";
+		for(int i=0; i<n; i++) {
+			xp[i] += "];\n";
+			xn[i] += "];\n";
+			points += xp[i] + xn[i];
+		}
+
+		try{
+			// Create file 
+			FileWriter fstream = new FileWriter("octave/points"+System.currentTimeMillis()+".m");
+			BufferedWriter out = new BufferedWriter(fstream);
+			out.write(points);
+			//Close the output stream
+			out.close();
+		} catch (Exception e){//Catch exception if any
+			System.err.println("Error: " + e.getMessage());
+		}
+	}
+
+    private static boolean traceSvm(ArrayList<Couple> poslbl, ArrayList<Couple> neglbl) {
     	
         int size = poslbl.size() + neglbl.size();
 
@@ -930,6 +1065,9 @@ public class MainAlgorithm {
         model = svm.svm_train(problem, parameter);
         // sv = ( nSV ; n )
         svm_node[][] sv = model.SV;
+        // no support vectors
+        if(sv.length == 0)
+        	return false;
         // sv_coef = ( 1 ; nSV )
         double[][] sv_coef = model.sv_coef;
         
@@ -963,6 +1101,7 @@ public class MainAlgorithm {
 
         System.out.println("theta = "+theta);
         
+        return true;
     }
 
 }

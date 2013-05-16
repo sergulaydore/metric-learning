@@ -42,6 +42,8 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 			w2 += getWeight(ng);
 		for(String ng : ngint)
 			wint += getWeight(ng);
+		if(w1+w2 == 0)
+			return 1.0;
 		return 2 * wint / (w1 + w2);
 	}
 
@@ -132,6 +134,11 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 				max = d;
 		return max;
 	}
+	
+	public void setWeights(HashMap<String, Double> weights) {
+		this.weights = weights;
+	}
+
 	
 	@Override
 	public double getDistance(String sp, String tp) {

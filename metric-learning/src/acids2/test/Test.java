@@ -28,7 +28,7 @@ public class Test {
 	 * @throws IOException 
 	 */
 	public static void main(String[] args) throws IOException {
-		
+				
 		String datasetPath = args[0];
 //		String datasetPath = "1-dblp-acm";
 //		String datasetPath = "2-dblp-scholar";
@@ -36,6 +36,7 @@ public class Test {
 		int k = Integer.parseInt(args[1]);
 		double beta = Double.parseDouble(args[2]);
 		double th0c = Double.parseDouble(args[3]);
+		int mip = Integer.parseInt(args[4]);
 		
 		String sourcePath = "data/" + datasetPath + "/sources.csv";
 		String targetPath = "data/" + datasetPath + "/targets.csv";
@@ -45,7 +46,7 @@ public class Test {
 		loadMappings(mappingPath);
 		
 		System.out.println("k = "+k+"\tbeta = "+beta);
-		MainAlgorithm.start(sources, targets, k, beta, th0c);
+		MainAlgorithm.start(sources, targets, k, beta, th0c, mip);
 		
 	}
 

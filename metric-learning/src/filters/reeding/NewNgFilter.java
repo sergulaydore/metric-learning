@@ -35,30 +35,35 @@ public class NewNgFilter extends WeightedNgramFilter {
 		double tmu = theta * getMinWeight();
 		double upper = (2 - tmu) / tmu;
 		double lower = tmu / (2 - tmu);
-		
+		double kappa = (2 - theta) / theta;
 		for(Couple c : intersection) {
 			Resource s = c.getSource(), t = c.getTarget();
-			ArrayList<String> ng0s = removeZeros(getNgrams(s.getPropertyValue(propertyName), n));
-			ArrayList<String> ng0t = removeZeros(getNgrams(t.getPropertyValue(propertyName), n));
-			// length-aware filter
 			String src = s.getPropertyValue(propertyName), tgt = t.getPropertyValue(propertyName);
-			int ngs = ng0s.size(), ngt = ng0t.size();
-			double s1 = mw(src), s0 = sw(src);
-			if(ngs <= ngt * upper && ngs >= ngt * lower) {
-				// refined length-aware filter
-				double t1 = mw(tgt), t0 = sw(tgt);
-				double upper2 = (2 * t0 - theta * s1) / (theta * t1);
-				double lower2 = (theta * t1) / (2 * t0 - theta * s1);
-				if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
-					// index-based filter
-					double k = theta * Math.min(s0, t0) / 2 * (ngs + ngt);
-					ArrayList<String> share = intersect(ng0s, ng0t);
-					if(share.size() >= k) {
-						// similarity calculation
-						double sim = this.getDistance(src, tgt);
-						if(sim >= theta) {
-							c.setDistance(sim, this.property.getIndex());
-							results.add(c);
+			// definition-based filter
+			double ws = weightSum(src), wt = weightSum(tgt);
+			double w_plus = kappa * ws, w_minus = ws / kappa;
+			if(w_minus <= wt && wt <= w_plus) {
+				// index-based filter
+				double t0 = sw(tgt), s1 = mw(src), s0 = sw(src);
+				ArrayList<String> ng0s = getNgrams(s.getPropertyValue(propertyName), n);
+				ArrayList<String> ng0t = getNgrams(t.getPropertyValue(propertyName), n);
+				int ngs = ng0s.size(), ngt = ng0t.size();
+				double k = theta * Math.min(s0, t0) / 2 * (ngs + ngt);
+				ArrayList<String> share = intersect(ng0s, ng0t);
+				if(share.size() >= k) {
+					// length-aware filter
+					if(ngs <= ngt * upper && ngs >= ngt * lower) {
+						// refined length-aware filter
+						double t1 = mw(tgt);
+						double upper2 = (2 * t0 - theta * s1) / (theta * t1);
+						double lower2 = (theta * t1) / (2 * t0 - theta * s1);
+						if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
+							// similarity calculation
+							double sim = this.getDistance(src, tgt);
+							if(sim >= theta) {
+								c.setDistance(sim, this.property.getIndex());
+								results.add(c);
+							}
 						}
 					}
 				}
@@ -86,47 +91,67 @@ public class NewNgFilter extends WeightedNgramFilter {
 		double lower = tmu / (2 - tmu);
 		
 		HashMap<Resource, ArrayList<String>> ngLs = new HashMap<Resource, ArrayList<String>>();
+		HashMap<Resource, Double> ngWs = new HashMap<Resource, Double>();
 		for(Resource s : sources) {
-			ArrayList<String> ng0s = removeZeros(getNgrams(s.getPropertyValue(propertyName), n));
-			ngLs.put(s, ng0s);
+			String src = s.getPropertyValue(propertyName);
+			ngLs.put(s, getNgrams(src, n));
+			ngWs.put(s, weightSum(src));
 		}
 		HashMap<Resource, ArrayList<String>> ngLt = new HashMap<Resource, ArrayList<String>>();
+		HashMap<Resource, Double> ngWt = new HashMap<Resource, Double>();
+		HashMap<Resource, Double> t0t = new HashMap<Resource, Double>();
 		for(Resource t : targets) {
-			ArrayList<String> ng0t = removeZeros(getNgrams(t.getPropertyValue(propertyName), n));
-			ngLt.put(t, ng0t);
+			String tgt = t.getPropertyValue(propertyName);
+			ngLt.put(t, getNgrams(tgt, n));
+			ngWt.put(t, weightSum(tgt));
+			t0t.put(t, sw(tgt));
 		}
+		int c1=0,c2=0,c3=0,c4=0;
+		double kappa = (2 - theta) / theta;
 		for(Resource s : sources) {
-			// length-aware filter
 			String src = s.getPropertyValue(propertyName);
 			ArrayList<String> ng0s = ngLs.get(s);
 			int ngs = ng0s.size();
-			double s1 = mw(src), s0 = sw(src);
+			double s1 = mw(src), s0 = sw(src), ws = ngWs.get(s);
+			double w_plus = kappa * ws, w_minus = ws / kappa;
 			for(Resource t : targets) {
 				String tgt = t.getPropertyValue(propertyName);
-				ArrayList<String> ng0t = ngLt.get(t);
-				int ngt = ng0t.size();
-				if(ngs <= ngt * upper && ngs >= ngt * lower) {
-					// refined length-aware filter
-					double t1 = mw(tgt), t0 = sw(tgt);
-					double upper2 = (2 * t0 - theta * s1) / (theta * t1);
-					double lower2 = (theta * t1) / (2 * t0 - theta * s1);
-					if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
-						// index-based filter
-						double k = theta * Math.min(s0, t0) / 2 * (ngs + ngt);
-						ArrayList<String> share = intersect(ng0s, ng0t);
-						if(share.size() >= k) {
-							// similarity calculation
-							double sim = this.getDistance(src, tgt);
-							if(sim >= theta) {
-								Couple c = new Couple(s, t);
-								c.setDistance(sim, this.property.getIndex());
-								results.add(c);
+				// definition-based filter
+				double wt = ngWt.get(t);
+				if(w_minus <= wt && wt <= w_plus) {
+					c1++;
+					// index-based filter
+					double t0 = t0t.get(t);
+					ArrayList<String> ng0t = ngLt.get(t);
+					int ngt = ng0t.size();
+					double k = theta * Math.min(s0, t0) / 2 * (ngs + ngt);
+					ArrayList<String> share = intersect(ng0s, ng0t);
+					if(share.size() >= k) {
+						c4++;
+						// length-aware filter
+						if(ngs <= ngt * upper && ngs >= ngt * lower) {
+							c2++;
+							// refined length-aware filter
+							double t1 = mw(tgt);
+							double upper2 = (2 * t0 - theta * s1) / (theta * t1);
+							double lower2 = (theta * t1) / (2 * t0 - theta * s1);
+							if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
+								c3++;
+								// similarity calculation
+								double sim = this.getDistance(src, tgt);
+								if(sim >= theta) {
+									Couple c = new Couple(s, t);
+									c.setDistance(sim, this.property.getIndex());
+									results.add(c);
+								}
 							}
 						}
 					}
 				}
 			}
 		}
+		
+		System.out.println((sources.size()*targets.size())+"\tDEF="+c1+"\tLEN="+c2+"\tREF="+c3+"\tIND="+c4+"\t"+results.size());
 		
 		if(this.isVerbose()) {
 			double compTime = (System.currentTimeMillis()-start)/1000.0;
@@ -167,5 +192,12 @@ public class NewNgFilter extends WeightedNgramFilter {
 		return max;
 	}
 
+	private double weightSum(String s) {
+		ArrayList<String> ngs = getNgrams(s, n);
+		double sum = 0;
+		for(String ng : ngs)
+			sum += getWeight(ng);
+		return sum;
+	}
 
 }

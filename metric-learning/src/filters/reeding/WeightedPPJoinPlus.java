@@ -24,9 +24,9 @@ public class WeightedPPJoinPlus {
 	 */
 	private static final int n = 3;
 	
-	public static TreeSet<Couple> run(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
-		TreeSet<Couple> results = new TreeSet<Couple>(); // S
+	public static ArrayList<Couple> run(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta) {
+		ArrayList<Couple> results = new ArrayList<Couple>(); // S
 		
 		double t = theta / (2.0 - theta);
 		
@@ -141,8 +141,8 @@ public class WeightedPPJoinPlus {
 		System.out.println("Filter started...");
 		
 		String[] strings = load();
-		TreeSet<Resource> sources = new TreeSet<Resource>();
-		TreeSet<Resource> targets = new TreeSet<Resource>();
+		ArrayList<Resource> sources = new ArrayList<Resource>();
+		ArrayList<Resource> targets = new ArrayList<Resource>();
 		String propertyName = "name";
 		for(String s : strings) {
 			Resource r = new Resource(s);
@@ -152,7 +152,7 @@ public class WeightedPPJoinPlus {
 		}
 		double theta = 0.5;
 		
-		TreeSet<Couple> res = run(sources, targets, propertyName, theta);
+		ArrayList<Couple> res = run(sources, targets, propertyName, theta);
 		for(Couple c : res)
 			System.out.println(c+"\t"+c.getDistanceAt(0));
 	}

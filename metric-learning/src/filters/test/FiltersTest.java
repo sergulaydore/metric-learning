@@ -8,11 +8,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.TreeSet;
-import java.util.Vector;
-
-import distances.WeightedEditDistanceExtended;
 
 import utility.SystemOutHandler;
 import acids2.Couple;
@@ -21,18 +17,18 @@ import acids2.Resource;
 import algorithms.edjoin.EdJoinPlus;
 import algorithms.edjoin.Entry;
 import au.com.bytecode.opencsv.CSVReader;
+import distances.WeightedEditDistanceExtended;
 import filters.edjoin.EdJoinFilter;
 import filters.passjoin.PassJoin;
 import filters.reeded.ReededFilter;
+import filters.reeding.CrowFilter;
 import filters.reeding.IndexNgFilter;
-import filters.reeding.NewNgFilter;
-import filters.reeding.ReedingFilter;
 
 
 public class FiltersTest {
 
-	private static TreeSet<Resource> sources = new TreeSet<Resource>();
-	private static TreeSet<Resource> targets = new TreeSet<Resource>();
+	private static ArrayList<Resource> sources = new ArrayList<Resource>();
+	private static ArrayList<Resource> targets = new ArrayList<Resource>();
 	
 	private static String sys_out = "\n";
 	private static double THETA_MIN;
@@ -106,7 +102,7 @@ public class FiltersTest {
 		
 		System.out.println(sources.size());
 
-	    TreeSet<Couple> passjResults = null;
+		ArrayList<Couple> passjResults = null;
 	    
 	    PassJoin pj = new PassJoin(p);
 	    
@@ -153,10 +149,10 @@ public class FiltersTest {
     @SuppressWarnings("unused")
 	private static void crossValidation(String dataset, Property p) throws IOException {
 		System.out.println("PassJoin");
-		TreeSet<Couple> pj = testPassJoinOnce(p, 1);
+		ArrayList<Couple> pj = testPassJoinOnce(p, 1);
 		
 		System.out.println("EDJoin");
-		TreeSet<Couple> ej = testEdJoinOnce(p, 1);
+		ArrayList<Couple> ej = testEdJoinOnce(p, 1);
 
 		// Cross-validation.
 		int i = 0;
@@ -181,11 +177,11 @@ public class FiltersTest {
 		}
 	}
 
-	private static TreeSet<Couple> testEdJoinOnce(Property p, double theta) throws IOException {
+	private static ArrayList<Couple> testEdJoinOnce(Property p, double theta) throws IOException {
 		
 //		System.out.println(sources.size());
 		
-		TreeSet<Couple> edjResults = null;
+		ArrayList<Couple> edjResults = null;
 		
 		EdJoinFilter ed = new EdJoinFilter(p);
 		ed.setVerbose(false);
@@ -201,11 +197,11 @@ public class FiltersTest {
 		return edjResults;
 	}
 
-	private static TreeSet<Couple> testPassJoinOnce(Property p, int theta) throws IOException {
+	private static ArrayList<Couple> testPassJoinOnce(Property p, int theta) throws IOException {
 
 		System.out.println(sources.size());
 
-	    TreeSet<Couple> passjResults = null;
+		ArrayList<Couple> passjResults = null;
 	    
 		long start = System.currentTimeMillis();
 		
@@ -219,11 +215,11 @@ public class FiltersTest {
 		return passjResults;
 	}
 
-	private static TreeSet<Couple> testReededFilter(Property p, double theta) throws IOException {
+	private static ArrayList<Couple> testReededFilter(Property p, double theta) throws IOException {
 
 //		System.out.println(sources.size());
 
-	    TreeSet<Couple> oafResults = null;
+		ArrayList<Couple> oafResults = null;
 	    
 		ReededFilter rf = new ReededFilter(p);
 	    rf.setVerbose(false);
@@ -240,11 +236,11 @@ public class FiltersTest {
 		return oafResults;
 	}
 
-	private static TreeSet<Couple> testPassJoin(Property p, double theta) throws IOException {
+	private static ArrayList<Couple> testPassJoin(Property p, double theta) throws IOException {
 
 //		System.out.println(sources.size());
 
-	    TreeSet<Couple> passjResults = null;
+		ArrayList<Couple> passjResults = null;
 	    
 	    PassJoin pj = new PassJoin(p);
 	    pj.setVerbose(false);
@@ -263,9 +259,9 @@ public class FiltersTest {
 	}
 
     private static double testNewNgFilter(Property p, double theta) {
-	    TreeSet<Couple> results = null;
+    	ArrayList<Couple> results = null;
 	    
-	    NewNgFilter ngf = new NewNgFilter(p);
+	    CrowFilter ngf = new CrowFilter(p);
 	    ngf.setVerbose(false);
 	    
 	    long start = System.currentTimeMillis();
@@ -280,8 +276,8 @@ public class FiltersTest {
 		return compTime;
 	}
     
-    private static TreeSet<Couple> testIndexNgFilter(Property p, double theta) {
-	    TreeSet<Couple> results = null;
+    private static ArrayList<Couple> testIndexNgFilter(Property p, double theta) {
+    	ArrayList<Couple> results = null;
 	    
 	    IndexNgFilter ngf = new IndexNgFilter(p);
 	    ngf.setVerbose(false);

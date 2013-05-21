@@ -24,12 +24,12 @@ public class PassJoin extends WeightedEditDistanceFilter {
 		property = p;
 	}
 	
-	public TreeSet<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, 
+	public ArrayList<Couple> passJoin(ArrayList<Resource> sources, ArrayList<Resource> targets, 
 			String propertyName, double theta) {
 		
 		int tau = (int) (theta / this.getMinWeight());
 		
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 		
 		Collections.sort(sources, new OrderByLengthAndAlpha(propertyName));
 		Collections.sort(targets, new OrderByLengthAndAlpha(propertyName));
@@ -189,14 +189,14 @@ public class PassJoin extends WeightedEditDistanceFilter {
 	}
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
+	public ArrayList<Couple> filter(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta) {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
 			String propertyName, double theta) {
 		// TODO Auto-generated method stub
 		return null;

@@ -25,10 +25,10 @@ public class IndexNgFilter extends WeightedNgramFilter {
 	}
 	
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
 			String propertyName, double theta) {
 		
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 
 		long start = System.currentTimeMillis();
 		
@@ -43,10 +43,10 @@ public class IndexNgFilter extends WeightedNgramFilter {
 	}
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
+	public ArrayList<Couple> filter(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta) {
 
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 
 		long start = System.currentTimeMillis();
 				

@@ -2,7 +2,6 @@ package filters.reeding;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.TreeSet;
 
 import acids2.Couple;
 import acids2.Property;
@@ -15,20 +14,18 @@ import filters.WeightedNgramFilter;
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class NewNgFilter extends WeightedNgramFilter {
+public class CrowFilter extends WeightedNgramFilter {
 		
-	public NewNgFilter(Property p) {
+	public CrowFilter(Property p) {
 		super();
 		property = p;
-//		getWeights().put("abc", 0.2);
-//		getWeights().put("xyz", 0.4);
 	}
 	
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
 			String propertyName, double theta) {
 		
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 
 		long start = System.currentTimeMillis();
 		
@@ -44,17 +41,16 @@ public class NewNgFilter extends WeightedNgramFilter {
 			double w_plus = kappa * ws, w_minus = ws / kappa;
 			if(w_minus <= wt && wt <= w_plus) {
 				// index-based filter
-				double t0 = sw(tgt), s1 = mw(src), s0 = sw(src);
+				double t0 = sw(tgt), s1 = mw(src), s0 = sw(src), t1 = mw(tgt);
 				ArrayList<String> ng0s = getNgrams(s.getPropertyValue(propertyName), n);
 				ArrayList<String> ng0t = getNgrams(t.getPropertyValue(propertyName), n);
 				int ngs = ng0s.size(), ngt = ng0t.size();
-				double k = theta * Math.min(s0, t0) / 2 * (ngs + ngt);
+				double k = theta * Math.min(s0, t0) / 2 * (s1 * ngs + t1 * ngt);
 				ArrayList<String> share = intersect(ng0s, ng0t);
 				if(share.size() >= k) {
 					// length-aware filter
 					if(ngs <= ngt * upper && ngs >= ngt * lower) {
 						// refined length-aware filter
-						double t1 = mw(tgt);
 						double upper2 = (2 * t0 - theta * s1) / (theta * t1);
 						double lower2 = (theta * t1) / (2 * t0 - theta * s1);
 						if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
@@ -79,10 +75,10 @@ public class NewNgFilter extends WeightedNgramFilter {
 	}
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
+	public ArrayList<Couple> filter(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta) {
 
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 
 		long start = System.currentTimeMillis();
 				
@@ -121,10 +117,10 @@ public class NewNgFilter extends WeightedNgramFilter {
 				if(w_minus <= wt && wt <= w_plus) {
 					c1++;
 					// index-based filter
-					double t0 = t0t.get(t);
+					double t0 = t0t.get(t), t1 = mw(tgt);
 					ArrayList<String> ng0t = ngLt.get(t);
 					int ngt = ng0t.size();
-					double k = theta * Math.min(s0, t0) / 2 * (ngs + ngt);
+					double k = theta * Math.min(s0, t0) / 2 * (s1 * ngs + t1 * ngt);
 					ArrayList<String> share = intersect(ng0s, ng0t);
 					if(share.size() >= k) {
 						c4++;
@@ -132,7 +128,6 @@ public class NewNgFilter extends WeightedNgramFilter {
 						if(ngs <= ngt * upper && ngs >= ngt * lower) {
 							c2++;
 							// refined length-aware filter
-							double t1 = mw(tgt);
 							double upper2 = (2 * t0 - theta * s1) / (theta * t1);
 							double lower2 = (theta * t1) / (2 * t0 - theta * s1);
 							if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
@@ -155,12 +150,13 @@ public class NewNgFilter extends WeightedNgramFilter {
 		
 		if(this.isVerbose()) {
 			double compTime = (System.currentTimeMillis()-start)/1000.0;
-			System.out.println("NewNG: Join done in "+compTime+" seconds.");
+			System.out.println("CROW: Join done in "+compTime+" seconds.");
 		}
 		
 		return results;
 	}
 	
+	@SuppressWarnings("unused")
 	private ArrayList<String> removeZeros(ArrayList<String> ngrams) {
 		ArrayList<String> output = new ArrayList<String>();
 		for(String ng : ngrams)

@@ -1,7 +1,7 @@
 package filters;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.TreeSet;
 
 import acids2.Couple;
 import acids2.Property;
@@ -13,10 +13,10 @@ import acids2.Resource;
  */
 public abstract class StandardFilter {
 	
-	public abstract TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta);
+	public abstract ArrayList<Couple> filter(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta);
 	
-	public abstract TreeSet<Couple> filter(TreeSet<Couple> intersection, String propertyName, double theta);
+	public abstract ArrayList<Couple> filter(ArrayList<Couple> intersection, String propertyName, double theta);
 	
 	public abstract double getDistance(String sp, String tp);
 	

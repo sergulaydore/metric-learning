@@ -1,5 +1,6 @@
 package filters.edjoin;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.TreeSet;
 
@@ -17,8 +18,8 @@ public class EdJoinFilter extends WeightedEditDistanceFilter {
 		property = p;
 	}
 	
-	public TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
+	public ArrayList<Couple> filter(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta) {
 		
 		TreeSet<Entry> sTree = new TreeSet<Entry>();
         for(Resource s : sources)
@@ -27,7 +28,7 @@ public class EdJoinFilter extends WeightedEditDistanceFilter {
         for(Resource s : targets)
             tTree.add(new Entry(s.getID(), s.getPropertyValue(propertyName)));
         
-		TreeSet<Couple> results = new TreeSet<Couple>();
+        ArrayList<Couple> results = new ArrayList<Couple>();
 		TreeSet<String> temp = new TreeSet<String>();
 		
 		// ceiling is required because EdJoin works with integers only.
@@ -74,7 +75,7 @@ public class EdJoinFilter extends WeightedEditDistanceFilter {
 
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
 			String propertyName, double theta) {
 		// TODO Auto-generated method stub
 		return null;

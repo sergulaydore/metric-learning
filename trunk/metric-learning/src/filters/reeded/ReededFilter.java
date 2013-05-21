@@ -1,7 +1,7 @@
 package filters.reeded;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.TreeSet;
 import java.util.Vector;
 
 import acids2.Couple;
@@ -21,10 +21,10 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 	}
 	
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
 			String propertyName, double theta) {
 		
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 
 		double tau = theta / getMinWeight();
 		
@@ -64,10 +64,10 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 	}
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
+	public ArrayList<Couple> filter(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta) {
 		
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 
 		double tau = theta / getMinWeight();
 		
@@ -114,7 +114,7 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 	}
 	
 	private void reededCore(Resource s, Resource t, String sp, String tp, Vector<Character> cs, Vector<Character> ct, 
-			double tau, double theta, TreeSet<Couple> results) {
+			double tau, double theta, ArrayList<Couple> results) {
 		
 		if(Math.abs(sp.length() - tp.length()) <= tau) {
 			// (...) + (size % 2);

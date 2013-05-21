@@ -1,12 +1,9 @@
 package acids2;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.TreeSet;
 
 import libsvm.svm;
@@ -15,13 +12,14 @@ import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
 import utility.GammaComparator;
-import utility.ValueParser;
+import acids.output.OctaveScriptCreator;
+import acids.output.SageScriptCreator;
 import acids2.plot.Svm3D;
 import acids2.test.Test;
 import filters.StandardFilter;
 import filters.WeightedNgramFilter;
 import filters.mahalanobis.MahalaFilter;
-import filters.reeding.NewNgFilter;
+import filters.reeding.CrowFilter;
 
 /**
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
@@ -66,10 +64,9 @@ public class MainAlgorithm {
 	private static svm_node[][] orig_x; 
 
 	private static ArrayList<Property> props = new ArrayList<Property>();
-    private static HashMap<Integer, ArrayList<Double>> extrema = new HashMap<Integer, ArrayList<Double>>();
-
     
-    public static void start(TreeSet<Resource> sources, TreeSet<Resource> targets, int _queries, double _beta, double _th0c,
+    
+    public static void start(ArrayList<Resource> sources, ArrayList<Resource> targets, int _queries, double _beta,
     		int _mip) {
 		long t0 = System.currentTimeMillis(); 
 				
@@ -80,8 +77,8 @@ public class MainAlgorithm {
 		
 		ArrayList<String> propertyNames;
 		try {
-			propertyNames = sources.first().getPropertyNames();
-		} catch (NoSuchElementException e) {
+			propertyNames = sources.get(0).getPropertyNames();
+		} catch (Exception e) {
 			System.err.println("Source set is empty!");
 			return;
 		}
@@ -109,14 +106,14 @@ public class MainAlgorithm {
 		for(Property p : props) {
 			System.out.println(p.getName()+"\t"+p.getDatatypeAsString());
 			if(p.getDatatype() == Property.TYPE_NUMERIC)
-				computeExtrema(p.getIndex(), sources, targets);
+				((MahalaFilter) p.getFilter()).computeExtrema(sources, targets);
 		}
 		
 		n = propertyNames.size();
 		w = new double[n];
 		for(int i=0; i<n; i++)
 			w[i] = 1.0;
-		theta0 = (double) n * _th0c;
+		theta0 = (double) n - 0.5;
 		theta = theta0;
 		
 		long prTime = System.currentTimeMillis() - t0, alTime = 0, mlTime = 0;
@@ -125,13 +122,13 @@ public class MainAlgorithm {
 		
 		ArrayList<Couple> labelled = new ArrayList<Couple>();
 
-		for(int i_loop=0; query_counter<max_queries; i_loop++) { // huge loop
+		for(int i_loop=0; query_counter<max_queries || theta == -1.0; i_loop++) { // huge loop
 			
 			System.out.println("\nGrand loop: iteration #"+(i_loop+1));
 			
 			long pr0 = System.currentTimeMillis();
 			
-			TreeSet<Couple> intersection = new TreeSet<Couple>();
+			ArrayList<Couple> intersection = new ArrayList<Couple>();
 			beta = _beta;
 			
 			big: while(true) {
@@ -155,12 +152,17 @@ public class MainAlgorithm {
 						}
 						System.out.println("intersection size: "+intersection.size());
 					}
-					if(allInfinite) { // solves the problem when there are no thresholds
+					// solves the problem when there are no thresholds or too many couples
+					if(allInfinite || intersection.size() > 1E+6) {
 						Property p = props.get(0);
 						double theta_i = theta0 - beta - n + 1;
+						if(theta_i < 0.1) // avoids quadratic comparison
+							theta_i = 0.1;
 						System.out.println("Default. Property: "+p.getName()+"\ttheta_"+0+" = "+theta_i);
 						intersection = p.getFilter().filter(sources, targets, p.getName(), theta_i);
 						p.setNoisy(false);
+						for(int i=1; i<n; i++)
+							props.get(i).setNoisy(true);
 						System.out.println("intersection size: "+intersection.size());
 					}
 					if(blockingEndCondition(intersection.size(), sources.size()*targets.size()))
@@ -183,8 +185,6 @@ public class MainAlgorithm {
 					}
 				}
 				
-				normalizeNumValues(intersection);
-				
 				ArrayList<Couple> posInformative = new ArrayList<Couple>();
 				ArrayList<Couple> negInformative = new ArrayList<Couple>();
 				
@@ -204,8 +204,8 @@ public class MainAlgorithm {
 				Collections.sort(posInformative, new GammaComparator());
 				Collections.sort(negInformative, new GammaComparator());
 						
-				TreeSet<Couple> posMostInformative = new TreeSet<Couple>();
-				TreeSet<Couple> negMostInformative = new TreeSet<Couple>();
+				ArrayList<Couple> posMostInformative = new ArrayList<Couple>();
+				ArrayList<Couple> negMostInformative = new ArrayList<Couple>();
 				
 				for(int i=0; posMostInformative.size() < k && i != posInformative.size(); i++) {
 					Couple c = posInformative.get(i);
@@ -383,21 +383,27 @@ public class MainAlgorithm {
 		System.out.println("");
 
 		if( !fastEvaluation(sources, targets) )
-			subsetEvaluation(sources, targets);
+			evaluation(sources, targets);
+//			subsetEvaluation(sources, targets);
 		
-//		evaluation(sources, targets);
-		
-		createOctaveScript(sources, targets, props);
 		
 		try {
-//			Svm3D.draw(model, problem, theta_plot, sv_d, theta0);
-		} catch (ArrayIndexOutOfBoundsException e) {
-			System.out.println("3D: no plot (n < 3).");
+//			new OctaveScriptCreator().create(sources, targets, props, w_linear, theta);
+			new SageScriptCreator().create(sources, targets, props, w_linear, theta);
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
+		
+//		try {
+//			Svm3D.draw(model, problem, theta_plot, sv_d, theta0);
+//		} catch (ArrayIndexOutOfBoundsException e) {
+//			System.out.println("3D: no plot (n < 3).");
+//		}
 		
 	}
 
-	private static boolean fastEvaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
+	private static boolean fastEvaluation(ArrayList<Resource> sources, ArrayList<Resource> targets) {
 		double tp = 0, tn = 0, fp = 0, fn = 0;
 		
 		ArrayList<String> mapping = Test.getOraclesAnswers();
@@ -419,8 +425,6 @@ public class MainAlgorithm {
 			for(int i=0; i<n; i++) {
 				Property p = props.get(i);
 				double d = p.getFilter().getDistance(src.getPropertyValue(p.getName()), tgt.getPropertyValue(p.getName()));
-                if(p.getDatatype() == Property.TYPE_NUMERIC)
-                	d = normalize(d, i);
 				c.setDistance(d, p.getIndex());
 			}
 			if(classify(c))
@@ -429,8 +433,8 @@ public class MainAlgorithm {
 				fn++;
 		}
 
-		TreeSet<Couple> intersection = new TreeSet<Couple>();
-		beta = 0;
+		ArrayList<Couple> intersection = new ArrayList<Couple>();
+		beta = 0.1;
 		boolean allInfinite = true, performCartesianP = true;
 		for(int i=0; i<n; i++) {
 			Property p = props.get(i);
@@ -441,7 +445,7 @@ public class MainAlgorithm {
 			if(!p.isNoisy()) {
 				if(performCartesianP) { // first property works on the entire Cartesian product.
 					if(p.getDatatype() == Property.TYPE_STRING) {
-						NewNgFilter ngf = new NewNgFilter(p);
+						CrowFilter ngf = new CrowFilter(p);
 						ngf.setWeights(p.getFilter().getWeights());
 						intersection = ngf.filter(sources, targets, p.getName(), theta_i);
 					} else {
@@ -450,7 +454,7 @@ public class MainAlgorithm {
 					performCartesianP = false;
 				} else {
 					if(p.getDatatype() == Property.TYPE_STRING) {
-						NewNgFilter ngf = new NewNgFilter(p);
+						CrowFilter ngf = new CrowFilter(p);
 						ngf.setWeights(p.getFilter().getWeights());
 						merge(intersection, ngf.filter(intersection, p.getName(), theta_i), i);
 					} else {
@@ -478,15 +482,15 @@ public class MainAlgorithm {
 			}
 		}
 
-		normalizeNumValues(intersection);
-		
 		double negIn = 0;
 		for(Couple c : intersection)
 			if(!askOracle(c.toString())) {
 				if(!classify(c))
 					tn++;
-				else
+				else {
+					System.out.println("FP = "+c);
 					fp++;
+				}
 				negIn++;
 			}
 		
@@ -536,14 +540,6 @@ public class MainAlgorithm {
 
 	private static boolean perceptronEndCondition(boolean cl, int i_perc, double f1) {
 		return !cl || i_perc >= max_iter_perceptron || f1 == 1.0;
-	}
-
-	private static void normalizeNumValues(TreeSet<Couple> intersection) {
-		// normalize numeric values... [0,1]
-		for(int i=0; i<props.size(); i++)
-			if(props.get(i).getDatatype() == Property.TYPE_NUMERIC)
-				for(Couple c : intersection)
-					c.setDistance( normalize(c.getDistanceAt(i), i), i );
 	}
 
     private static double computeThreshold(int j) {
@@ -621,8 +617,9 @@ public class MainAlgorithm {
 					min = x[j];
 			}
 		}
-		min = (int)((min-beta)*100) / 100.0;
-		if(min < 0.1) {
+		min = (int)((min-beta)*10) / 10.0;
+		// XXX 0.01 is arbitrary... 
+		if(min < 0.01) {
 			min = Double.NEGATIVE_INFINITY;
 			props.get(j).setNoisy(true);
 		} else {
@@ -634,7 +631,7 @@ public class MainAlgorithm {
 
 
 	@SuppressWarnings("unused")
-	private static void evaluation(TreeSet<Resource> sources, TreeSet<Resource> targets) {
+	private static void evaluation(ArrayList<Resource> sources, ArrayList<Resource> targets) {
 		long cnt = 0;
 		double tp = 0, tn = 0, fp = 0, fn = 0;
 		double[] val = new double[n];
@@ -645,8 +642,6 @@ public class MainAlgorithm {
 					Property prop = props.get(j);
 					String p = prop.getName();
 					val[j] = prop.getFilter().getDistance(s.getPropertyValue(p), t.getPropertyValue(p));
-	                if(prop.getDatatype() == Property.TYPE_NUMERIC)
-	                	val[j] = normalize(val[j], j);
 				}
 				if(askOracle(s.getID()+"#"+t.getID())) {
 					if(classify(val))
@@ -654,14 +649,15 @@ public class MainAlgorithm {
 					else
 						fn++;
 				} else {
-					if(classify(val))
+					if(classify(val)) {
 						fp++;
-					else
+						System.out.println("FP = "+s.getID()+"#"+t.getID());
+					} else
 						tn++;
 				}
-				cnt++;
-				if(cnt % 100000 == 0)
-					System.out.print(".");
+//				cnt++;
+//				if(cnt % 100000 == 0)
+//					System.out.print(".");
 			}
 		}
 		System.out.println();
@@ -711,10 +707,7 @@ public class MainAlgorithm {
 					val = prop.getFilter().getDistance(s.getPropertyValue(p), t.getPropertyValue(p));
 	                x2[problem.l+i][j] = new svm_node();
 	                x2[problem.l+i][j].index = j;
-	                if(prop.getDatatype() == Property.TYPE_NUMERIC)
-	                	x2[problem.l+i][j].value = normalize(val, j);
-	                else
-	                	x2[problem.l+i][j].value = val;
+                	x2[problem.l+i][j].value = val;
 				}
 				ids.add(s.getID()+"#"+t.getID());
 				if(i % 1000 == 0)
@@ -749,48 +742,12 @@ public class MainAlgorithm {
 		getFScore(tp, fp, tn, fn);
 	}
 
-	private static double normalize(double value, int j) {
-		// incomplete information means similarity = 0 
-		if(Double.isNaN(value))
-			return 0.0;
-		ArrayList<Double> ext = extrema.get(j);
-		double maxS = ext.get(0), minS = ext.get(1), maxT = ext.get(2), minT = ext.get(3);
-		double denom = Math.max(maxT - minS, maxS - minT);
-		if(denom == 0.0)
-			return 1.0;
-		else
-			return 1.0 - value / denom;
-	}
-
-	private static void computeExtrema(int index, TreeSet<Resource> sources, TreeSet<Resource> targets) {
-		ArrayList<Double> ext = new ArrayList<Double>();
-		String pname = props.get(index).getName();
-		double maxS = Double.NEGATIVE_INFINITY, minS = Double.POSITIVE_INFINITY;
-		for(Resource s : sources) {
-			double d = ValueParser.parse( s.getPropertyValue(pname) );
-			if(d > maxS) maxS = d;
-			if(d < minS) minS = d;
-		}
-		ext.add(maxS);
-		ext.add(minS);
-		double maxT = Double.NEGATIVE_INFINITY, minT = Double.POSITIVE_INFINITY;
-		for(Resource t : targets) {
-			double d = ValueParser.parse( t.getPropertyValue(pname) );
-			if(d > maxT) maxT = d;
-			if(d < minT) minT = d;
-		}
-		ext.add(maxT);
-		ext.add(minT);
-		extrema.put(index, ext);
-		((MahalaFilter) props.get(index).getFilter()).setExtrema(ext);
-		System.out.println(ext.toString());
-	}
 
 	private static boolean blockingEndCondition(int intersSize, int cartesianP) {
 		return intersSize >= 2*k+query_counter || cartesianP < max_queries+query_counter;
 	}
 
-	private static void merge(TreeSet<Couple> intersection, TreeSet<Couple> join, int index) {
+	private static void merge(ArrayList<Couple> intersection, ArrayList<Couple> join, int index) {
 	    Iterator<Couple> e = intersection.iterator();
 	    while (e.hasNext()) {
 	    	Couple c = e.next();
@@ -927,7 +884,7 @@ public class MainAlgorithm {
 		return Math.sqrt(x);
 	}
 
-	private static boolean askOracle(Couple c) {
+	public static boolean askOracle(Couple c) {
     	query_counter++;
     	String ids = c.getSource().getID()+"#"+c.getTarget().getID();
     	boolean b = askOracle(ids);
@@ -942,82 +899,6 @@ public class MainAlgorithm {
 		return Test.askOracle(ids); // TODO remove me & add interaction
 	}
 
-	private static void createOctaveScript(TreeSet<Resource> sources, TreeSet<Resource> targets, ArrayList<Property> props) {
-		String[] xp = new String[n];
-		String[] xn = new String[n];
-		for(int i=0; i<n; i++) {
-			xp[i] = "x"+i+"p = [";
-			xn[i] = "x"+i+"n = [";
-		}
-		int NEGATIVES = 5000;
-		ArrayList<String> mapping = Test.getOraclesAnswers();
-		
-		for(String map : mapping) {
-			String[] ids = map.split("#");
-			Resource src = null, tgt = null;
-			for(Resource s : sources)
-				if(s.getID().equals(ids[0])) {
-					src = s;
-					break;
-				}
-			for(Resource t : targets)
-				if(t.getID().equals(ids[1])) {
-					tgt = t;
-					break;
-				}
-			for(int i=0; i<n; i++) {
-				Property p = props.get(i);
-				double d = p.getFilter().getDistance(src.getPropertyValue(p.getName()), tgt.getPropertyValue(p.getName()));
-                if(p.getDatatype() == Property.TYPE_NUMERIC)
-                	d = normalize(d, i);
-                xp[i] += d + " ";
-			}
-		}
-
-		String[] names = new String[n];
-		StandardFilter[] filters = new StandardFilter[n];
-		for(int i=0; i<n; i++) {
-			filters[i] = props.get(i).getFilter();
-			names[i] = props.get(i).getName();
-		}
-		ArrayList<Resource> src = new ArrayList<Resource>(sources);
-		ArrayList<Resource> tgt = new ArrayList<Resource>(targets);
-		
-		for(int c=0; c<NEGATIVES; c++) {
-			Resource s = src.get((int) (src.size()*Math.random()));
-			Resource t = tgt.get((int) (tgt.size()*Math.random()));
-			double[] d = new double[n];
-			for(int i=0; i<n; i++) {
-				double sim = filters[i].getDistance(s.getPropertyValue(names[i]), t.getPropertyValue(names[i]));
-                if(props.get(i).getDatatype() == Property.TYPE_NUMERIC)
-                	sim = normalize(sim, i);
-				d[i] = Double.isNaN(sim) ? 0 : sim;
-			}
-			if(!askOracle(s.getID()+"#"+t.getID())) {
-				for(int i=0; i<n; i++)
-					xn[i] += d[i] + " ";
-			} else c--;
-		}
-		System.out.println();
-		
-		String points = "";
-		for(int i=0; i<n; i++) {
-			xp[i] += "];\n";
-			xn[i] += "];\n";
-			points += xp[i] + xn[i];
-		}
-
-		try{
-			// Create file 
-			FileWriter fstream = new FileWriter("octave/points"+System.currentTimeMillis()+".m");
-			BufferedWriter out = new BufferedWriter(fstream);
-			out.write(points);
-			//Close the output stream
-			out.close();
-		} catch (Exception e){//Catch exception if any
-			System.err.println("Error: " + e.getMessage());
-		}
-	}
 
     private static boolean traceSvm(ArrayList<Couple> poslbl, ArrayList<Couple> neglbl) {
     	

@@ -1,5 +1,6 @@
 package filters.reeding;
 
+import java.util.ArrayList;
 import java.util.TreeSet;
 
 import acids2.Couple;
@@ -21,10 +22,10 @@ public class ReedingFilter extends WeightedNgramFilter {
 	}
 	
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Resource> sources,
-			TreeSet<Resource> targets, String propertyName, double theta) {
+	public ArrayList<Couple> filter(ArrayList<Resource> sources,
+			ArrayList<Resource> targets, String propertyName, double theta) {
 
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results;
 
 		long start = System.currentTimeMillis();
 		
@@ -37,15 +38,15 @@ public class ReedingFilter extends WeightedNgramFilter {
 		double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
 		System.out.println("REEDiNG: Join done in "+compTime+" seconds.");
 		
-		return results;
+		return new ArrayList<Couple>(results);
 
 	}
 
 	@Override
-	public TreeSet<Couple> filter(TreeSet<Couple> intersection,
+	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
 			String propertyName, double theta) {
 
-		TreeSet<Couple> results = new TreeSet<Couple>();
+		ArrayList<Couple> results = new ArrayList<Couple>();
 
 		long start = System.currentTimeMillis();
 		for(Couple c : intersection)
@@ -59,7 +60,7 @@ public class ReedingFilter extends WeightedNgramFilter {
 	}
 	
 	private void reedingCore(Resource s, Resource t, String propertyName, 
-			double theta, TreeSet<Couple> results) {
+			double theta, ArrayList<Couple> results) {
 		
 		String sp = s.getPropertyValue(propertyName);
 		String tp = t.getPropertyValue(propertyName);

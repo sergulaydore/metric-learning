@@ -30,8 +30,6 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 	}
 
 	public double distance(String s1, String s2, int n) {
-		s1 = s1.toLowerCase().trim();
-		s2 = s2.toLowerCase().trim();
 		ArrayList<String> ng1 = getNgrams(s1, n);
 		ArrayList<String> ng2 = getNgrams(s2, n);
 		ArrayList<String> ngint = intersect(ng1, ng2);
@@ -51,10 +49,10 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 		ArrayList<String> intset = new ArrayList<String>(set1);
 		ArrayList<String> temp = new ArrayList<String>();
 		for(String s : set2)
-			temp.add(s.toLowerCase().trim());
+			temp.add(s);
 	    Iterator<String> e = intset.iterator();
 	    while (e.hasNext()) {
-	    	String item = e.next().toLowerCase().trim();
+	    	String item = e.next();
 	        if (!temp.contains(item))
 		        e.remove();
 	        else
@@ -64,6 +62,7 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 	}
 	
 	public static ArrayList<String> getNgrams(String s, int n) {
+		s = s.toLowerCase();
 		ArrayList<String> ngrams = new ArrayList<String>();
 		for(int i=0; i<n-1; i++)
 			s = "-" + s + "-";
@@ -73,7 +72,7 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 	}
 
 	protected double getWeight(String ng) {
-		Double d = weights.get(ng);
+		Double d = weights.get(ng.toLowerCase());
 		if(d == null)
 			return 1.0;
 		else

@@ -1,8 +1,11 @@
 package acids2.test;
 
+import java.io.BufferedWriter;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.TreeSet;
 
 import acids2.MainAlgorithm;
@@ -11,15 +14,15 @@ import au.com.bytecode.opencsv.CSVReader;
 
 public class Test {
 
-	private static TreeSet<Resource> sources = new TreeSet<Resource>();
-	private static TreeSet<Resource> targets = new TreeSet<Resource>();
+	private static ArrayList<Resource> sources = new ArrayList<Resource>();
+	private static ArrayList<Resource> targets = new ArrayList<Resource>();
 	
-    private static TreeSet<String> ignoredList = new TreeSet<String>();
+    private static ArrayList<String> ignoredList = new ArrayList<String>();
     
     static {
     	ignoredList.add("id");
     	ignoredList.add("venue");
-    	ignoredList.add("description");
+//    	ignoredList.add("description");
 //    	ignoredList.add("price");
     }
 
@@ -28,6 +31,9 @@ public class Test {
 	 * @throws IOException 
 	 */
 	public static void main(String[] args) throws IOException {
+		
+//		buildTinyDataset("data/1-dblp-acm/", "data/01-tiny/");
+//		System.exit(0);
 				
 		String datasetPath = args[0];
 //		String datasetPath = "1-dblp-acm";
@@ -35,8 +41,7 @@ public class Test {
 //		String datasetPath = "4-abt-buy";
 		int k = Integer.parseInt(args[1]);
 		double beta = Double.parseDouble(args[2]);
-		double th0c = Double.parseDouble(args[3]);
-		int mip = Integer.parseInt(args[4]);
+		int mip = Integer.parseInt(args[3]);
 		
 		String sourcePath = "data/" + datasetPath + "/sources.csv";
 		String targetPath = "data/" + datasetPath + "/targets.csv";
@@ -45,8 +50,8 @@ public class Test {
 		String mappingPath = "data/" + datasetPath + "/mapping.csv";
 		loadMappings(mappingPath);
 		
-		System.out.println("k = "+k+"\tbeta = "+beta);
-		MainAlgorithm.start(sources, targets, k, beta, th0c, mip);
+		System.out.println("dataset = "+datasetPath+"\tk = "+k+"\tbeta = "+beta);
+		MainAlgorithm.start(sources, targets, k, beta, mip);
 		
 	}
 
@@ -117,6 +122,70 @@ public class Test {
     
 	public static boolean askOracle(String ids) {
 		return oraclesAnswers.contains(ids);
+	}
+	
+	@SuppressWarnings("unused")
+	private static void buildTinyDataset(String originpath, String aimpath) throws IOException {
+		int N = 200;
+		loadMappings(originpath + "mapping.csv");
+		
+		HashMap<String, String> srcRows = new HashMap<String, String>();
+		HashMap<String, String> tgtRows = new HashMap<String, String>();
+		
+        CSVReader reader = new CSVReader(new FileReader(originpath + "sources.csv"));
+        String [] nextLine;
+        while ((nextLine = reader.readNext()) != null) {
+        	String line = nextLine[0];
+            for(int i=1; i<nextLine.length; i++) 
+            	line += "\",\"" + nextLine[i];
+            line = "\"" + line + "\"";
+            srcRows.put(nextLine[0], line);
+        }
+        reader.close();
+        
+        reader = new CSVReader(new FileReader(originpath + "targets.csv"));
+        while ((nextLine = reader.readNext()) != null) {
+        	String line = nextLine[0];
+            for(int i=1; i<nextLine.length; i++) 
+            	line += "\",\"" + nextLine[i];
+            line = "\"" + line + "\"";
+            tgtRows.put(nextLine[0], line);
+        }
+        reader.close();
+		
+        String output1 = "", output2 = "", output3 = "";
+        TreeSet<Integer> a = new TreeSet<Integer>();
+		for(int i=0; i<N; i++) {
+			int j = (int) (Math.random() * oraclesAnswers.size());
+			String mapping;
+			if(!a.contains(j)) {
+				mapping = oraclesAnswers.get(j);
+				a.add(j);
+			} else {
+				i--;
+				continue;
+			}
+			String[] maps = mapping.split("#");
+			String s = maps[0], t = maps[1];
+			output1 += srcRows.get(s) + "\n";
+			output2 += tgtRows.get(t) + "\n";
+			output3 += "\""+s+"\",\""+t+"\"\n"; 
+		}
+		
+		FileWriter fstream = new FileWriter(aimpath + "sources.csv");
+		BufferedWriter out = new BufferedWriter(fstream);
+		out.write(output1);
+		out.close();
+
+		fstream = new FileWriter(aimpath + "targets.csv");
+		out = new BufferedWriter(fstream);
+		out.write(output2);
+		out.close();
+
+		fstream = new FileWriter(aimpath + "mapping.csv");
+		out = new BufferedWriter(fstream);
+		out.write(output3);
+		out.close();
 	}
 	
 

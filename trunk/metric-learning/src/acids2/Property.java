@@ -3,7 +3,7 @@ package acids2;
 import filters.StandardFilter;
 import filters.mahalanobis.MahalaFilter;
 import filters.reeding.HybridFilter;
-import filters.reeding.NewNgFilter;
+import filters.reeding.CrowFilter;
 
 public class Property {
 	

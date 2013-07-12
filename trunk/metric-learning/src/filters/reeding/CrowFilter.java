@@ -33,6 +33,7 @@ public class CrowFilter extends WeightedNgramFilter {
 		double upper = (2 - tmu) / tmu;
 		double lower = tmu / (2 - tmu);
 		double kappa = (2 - theta) / theta;
+		int i=0;
 		for(Couple c : intersection) {
 			Resource s = c.getSource(), t = c.getTarget();
 			String src = s.getPropertyValue(propertyName), tgt = t.getPropertyValue(propertyName);
@@ -51,24 +52,27 @@ public class CrowFilter extends WeightedNgramFilter {
 					// length-aware filter
 					if(ngs <= ngt * upper && ngs >= ngt * lower) {
 						// refined length-aware filter
-						double upper2 = (2 * t0 - theta * s1) / (theta * t1);
-						double lower2 = (theta * t1) / (2 * t0 - theta * s1);
-						if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
+//						double upper2 = (2 * t0 - theta * s1) / (theta * t1);
+//						double lower2 = (theta * t1) / (2 * t0 - theta * s1);
+//						if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
 							// similarity calculation
 							double sim = this.getDistance(src, tgt);
 							if(sim >= theta) {
 								c.setDistance(sim, this.property.getIndex());
 								results.add(c);
 							}
-						}
+//						}
 					}
 				}
 			}
+			if(++i % 1000 == 0)
+				System.out.print(".");
 		}
+		System.out.println();
 		
 		if(this.isVerbose()) {
 			double compTime = (double)(System.currentTimeMillis()-start)/1000.0;
-			System.out.println("NewNG: Join done in "+compTime+" seconds.");
+			System.out.println("CROW: Join done in "+compTime+" seconds. Couples: "+results.size());
 		}	
 		
 		return results;
@@ -128,9 +132,9 @@ public class CrowFilter extends WeightedNgramFilter {
 						if(ngs <= ngt * upper && ngs >= ngt * lower) {
 							c2++;
 							// refined length-aware filter
-							double upper2 = (2 * t0 - theta * s1) / (theta * t1);
-							double lower2 = (theta * t1) / (2 * t0 - theta * s1);
-							if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
+//							double upper2 = (2 * t0 - theta * s1) / (theta * t1);
+//							double lower2 = (theta * t1) / (2 * t0 - theta * s1);
+//							if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
 								c3++;
 								// similarity calculation
 								double sim = this.getDistance(src, tgt);
@@ -139,7 +143,7 @@ public class CrowFilter extends WeightedNgramFilter {
 									c.setDistance(sim, this.property.getIndex());
 									results.add(c);
 								}
-							}
+//							}
 						}
 					}
 				}
@@ -150,7 +154,7 @@ public class CrowFilter extends WeightedNgramFilter {
 		
 		if(this.isVerbose()) {
 			double compTime = (System.currentTimeMillis()-start)/1000.0;
-			System.out.println("CROW: Join done in "+compTime+" seconds.");
+			System.out.println("CROW: Join done in "+compTime+" seconds. Couples: "+results.size());
 		}
 		
 		return results;
@@ -179,7 +183,7 @@ public class CrowFilter extends WeightedNgramFilter {
 	
 	private double mw(String s) {
 		ArrayList<String> ngs = getNgrams(s, n);
-		double max = 1;
+		double max = 0;
 		for(String ng : ngs) {
 			double w = getWeight(ng);
 			if(w > max)

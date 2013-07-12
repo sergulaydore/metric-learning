@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.TreeSet;
 
+import acids2.Resource;
+
 public abstract class WeightedNgramFilter extends StandardFilter {
 
 	/**
@@ -20,6 +22,58 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 	private HashMap<String, Double> weights = new HashMap<String, Double>();
 	private TreeSet<String> ngCacheIncrease = new TreeSet<String>();
 	private TreeSet<String> ngCacheDecrease = new TreeSet<String>();
+	
+	
+	public void init(ArrayList<Resource> sources, ArrayList<Resource> targets) {
+		ArrayList<Resource> all = new ArrayList<Resource>();
+		all.addAll(sources);
+		all.addAll(targets);
+		
+		HashMap<String, Integer> tf_gen = new HashMap<String, Integer>();
+		HashMap<String, Integer> idf_den = new HashMap<String, Integer>();
+
+		
+		for(Resource r : all) {
+			HashMap<String, Integer> tf_p = new HashMap<String, Integer>();
+			ArrayList<String> ngs = getNgrams(r.getPropertyValue(property.getName()), n);
+			for(String ng : ngs) {
+				Integer cnt = tf_p.get(ng);
+				if(cnt == null)
+					tf_p.put(ng, 1);
+				else
+					tf_p.put(ng, cnt+1);
+			}
+			for(String ng : tf_p.keySet()) {
+				Integer part = tf_gen.get(ng);
+				if(part == null)
+					tf_gen.put(ng, tf_p.get(ng));
+				else
+					tf_gen.put(ng, part + tf_p.get(ng));
+				
+				Integer cnt = idf_den.get(ng);
+				if(cnt == null)
+					idf_den.put(ng, 1);
+				else
+					idf_den.put(ng, cnt+1);
+			}
+		}
+		
+		for(String ng : idf_den.keySet()) {
+			double tf = (double) tf_gen.get(ng);
+			double idf = Math.log((double) all.size() / (double) idf_den.get(ng));
+			weights.put(ng, tf * idf);
+		}
+		
+		double max = 0.0;
+		for(Double d : weights.values())
+			if(d > max)
+				max = d;
+		for(String k : weights.keySet())
+			// TODO generate new tf-idf testset.txt and try with '1.0 - weights.get(k) / max'
+			weights.put(k, weights.get(k) / max);
+		
+		System.out.println(weights);
+	}
 	
 	public int getN() {
 		return n;

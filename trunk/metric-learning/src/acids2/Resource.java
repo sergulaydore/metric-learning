@@ -1,7 +1,5 @@
 package acids2;
 
-import java.text.Normalizer;
-import java.text.Normalizer.Form;
 import java.util.ArrayList;
 import java.util.TreeMap;
 
@@ -16,11 +14,15 @@ public class Resource implements Comparable<Resource> {
     private String ID;
     
     /**
-     * originalProperties include symbols.
-     * properties are for weighted edit distance calculation.
+     * Properties including symbols.
      */
     private TreeMap<String, String> originalProperties = new TreeMap<String, String>();
+    
+    /**
+     * Properties without symbols. Generally similarities are computed on these.
+     */
     private TreeMap<String, String> properties = new TreeMap<String, String>();
+    
     private ArrayList<String> propertyOrder = new ArrayList<String>();
 
     public Resource(String ID) {
@@ -56,7 +58,6 @@ public class Resource implements Comparable<Resource> {
     	try {
 			Double.parseDouble(this.getPropertyValue(prop));
 		} catch (NumberFormatException e) {
-//			System.out.println(prop+": "+this.getPropertyValue(prop)+" is not a double.");
 			return Property.TYPE_STRING;
 		}
     	return Property.TYPE_NUMERIC;

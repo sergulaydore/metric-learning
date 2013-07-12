@@ -131,5 +131,11 @@ public class ReededFilter extends WeightedEditDistanceFilter {
 		
 	}
 
+	@Override
+	public void init(ArrayList<Resource> sources, ArrayList<Resource> targets) {
+		// TODO Auto-generated method stub
+		
+	}
+
 
 }

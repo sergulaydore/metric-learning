@@ -1,7 +1,3 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package acids2;
 
 import java.util.ArrayList;
@@ -9,8 +5,8 @@ import java.util.Collections;
 import java.util.HashMap;
 
 /**
+ * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
- * @author tom
  */
 public class Couple implements Comparable<Couple> {
     
@@ -21,7 +17,6 @@ public class Couple implements Comparable<Couple> {
     
     private double gamma;
     
-//    private int[][][] count;
     private ArrayList<Operation> ops;
 
     public static final int TP = 1;
@@ -49,15 +44,10 @@ public class Couple implements Comparable<Couple> {
 	}
 
 	public void resetCount() {
-//        for(int i=0; i<count.length; i++)
-//            for(int j=0; j<count[i].length; j++)
-//                for(int k=0; k<count[i][j].length; k++)
-//                    count[i][j][k] = 0;
     	ops.clear();
     }
     
     public void count(int i, int j, int k) {
-//        count[i][j][k] ++;
     	ops.add(new Operation(i, j, k));
     }
     
@@ -118,13 +108,6 @@ public class Couple implements Comparable<Couple> {
 	        	cArr[arg1*64+arg2]++;
         	}
         }        
-//        int h = 0;
-//        for(int i=0; i<count.length; i++)
-//            for(int j=0; j<count[i].length; j++)
-//                if(i != j) {
-//                    cArr[h] = count[i][j][k];
-//                    h++;
-//                }
         return cArr;
     }
     
@@ -133,18 +116,22 @@ public class Couple implements Comparable<Couple> {
 			System.out.print(d+", ");
 		System.out.println("\t"+this+"\t"+this.getGamma());
     }
+    
+    public String getID() {
+    	return source.getID()+"#"+target.getID();
+    }
 
     @Override
     public int compareTo(Couple c) {
     	// maybe we should replace '#' with another symbol...
-        String c1 = this.getSource().getID()+"#"+this.getTarget().getID();
-        String c2 = c.getSource().getID()+"#"+c.getTarget().getID();
+        String c1 = this.getID();
+        String c2 = c.getID();
         return c1.compareTo(c2);
     }
     
     @Override
     public String toString() {
-		return this.getSource().getID()+"#"+this.getTarget().getID();
+		return this.getID();
     }
 
     @Override
@@ -153,8 +140,8 @@ public class Couple implements Comparable<Couple> {
     		return false;
     	else {
     		Couple c = (Couple) o;
-            String c1 = this.getSource().getID()+"#"+this.getTarget().getID();
-            String c2 = c.getSource().getID()+"#"+c.getTarget().getID();
+            String c1 = this.getID();
+            String c2 = c.getID();
             return c1.equals(c2);
     	}
     }

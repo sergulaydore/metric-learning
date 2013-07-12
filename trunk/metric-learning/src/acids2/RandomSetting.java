@@ -1,5 +1,6 @@
 package acids2;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -11,10 +12,12 @@ import libsvm.svm_node;
 import libsvm.svm_parameter;			
 import libsvm.svm_problem;
 import utility.GammaComparator;
+import utility.SystemOutHandler;
 import acids2.output.Fscore;
 import acids2.output.OctaveScriptCreator;
 import acids2.output.RawDataScriptCreator;
 import acids2.output.SageScriptCreator;
+import acids2.plot.Svm3D;
 import acids2.test.Test;
 import filters.StandardFilter;
 import filters.WeightedNgramFilter;
@@ -25,7 +28,7 @@ import filters.reeding.CrowFilter;
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class MainAlgorithm extends TestUnit {
+public class RandomSetting extends TestUnit {
 		
 	// SVM parameters
 	private svm_model model;
@@ -55,20 +58,24 @@ public class MainAlgorithm extends TestUnit {
 	// queries per iteration per class (pos|neg)
 	private int k = 5;
 
+	// number of random examples
+	private int H;
+
 	// support variables
 	private int query_counter = 0;
-	private double tp0 = 0, tn0 = 0, fp0 = 0, fn0 = 0;
 	private svm_node[][] orig_x; 
 
 	private ArrayList<Property> props = new ArrayList<Property>();
     
-	public MainAlgorithm(ArrayList<Resource> sources, ArrayList<Resource> targets, int _queries, double _beta,
-    		int _mip, boolean _tfidf) {
+    public RandomSetting(ArrayList<Resource> sources, ArrayList<Resource> targets, int _queries, double _beta,
+    		int _mip, int _H, boolean tfidf) {
+		//  {
     	
 		long t0 = System.currentTimeMillis(); 
 				
     	max_queries = _queries;
     	max_iter_perceptron = _mip;
+    	H = _H;
     	
     	props.clear();
     	
@@ -98,7 +105,7 @@ public class MainAlgorithm extends TestUnit {
 			}
 			Property p = new Property(pn, type, index);
 			props.add(p);
-			if(_tfidf)
+			if(tfidf)
 				p.getFilter().init(sources, targets);
 			
 			index++;
@@ -132,241 +139,103 @@ public class MainAlgorithm extends TestUnit {
 			ArrayList<Couple> intersection = new ArrayList<Couple>();
 			beta = _beta;
 			
-			big: while(true) {
-				
-				boolean allInfinite;
-				while(true) {
-					intersection.clear();
-					boolean performCartesianP = true;
-					allInfinite = true;
-					for(int i=0; i<n; i++) {
-						Property p = props.get(i);
-						double theta_i = computeMonteCarlo(i); // computeThreshold(i);
-						System.out.println("Property: "+p.getName()+"\ttheta_"+i+" = "+theta_i);
-						if(!p.isNoisy()) {
-							allInfinite = false;
-							if(performCartesianP) { // first property works on the entire Cartesian product.
-								intersection = p.getFilter().filter(sources, targets, p.getName(), theta_i);
-								performCartesianP = false;
-							} else
-								merge(intersection, p.getFilter().filter(intersection, p.getName(), theta_i), i);
-						}
-						System.out.println("intersection size: "+intersection.size());
-					}
-					// solves the problem when there are no thresholds or too many couples
-					if(allInfinite || intersection.size() > 1E+6) {
-						Property p = props.get(0);
-						double theta_i = theta0 - beta - n + 1;
-						if(theta_i < 0.1) // avoids quadratic comparison
-							theta_i = 0.1;
-						System.out.println("Default. Property: "+p.getName()+"\ttheta_"+0+" = "+theta_i);
-						intersection = p.getFilter().filter(sources, targets, p.getName(), theta_i);
-						p.setNoisy(false);
-						for(int i=1; i<n; i++)
-							props.get(i).setNoisy(true);
-						System.out.println("intersection size: "+intersection.size());
-					}
-					if(blockingEndCondition(intersection.size(), sources.size()*targets.size()))
-						break;
-					else {
-						beta = beta + _beta;
-						System.out.println("Broadening beta ("+beta+")");
-					}
-				}
-				
-				for(int i=0; i<n; i++) {
-					Property p = props.get(i);
-					if(p.isNoisy()) {
-						for(Couple c : intersection) {
-							Resource s = c.getSource();
-							Resource t = c.getTarget();
-							double d = props.get(i).getFilter().getDistance(s.getPropertyValue(p.getName()), t.getPropertyValue(p.getName()));
-							c.setDistance(d, p.getIndex());
-						}
-					}
-				}
-				
-				ArrayList<Couple> posInformative = new ArrayList<Couple>();
-				ArrayList<Couple> negInformative = new ArrayList<Couple>();
-				
-				for(Couple c : intersection) {
-					double gamma = computeGamma( c.getDistances() );
-					if(Double.isNaN(gamma))
-						c.info();
-			        c.setGamma( gamma );
-			        
-					if(classify(c))
-						posInformative.add(c);
-					else
-						negInformative.add(c);
-				}
-				System.out.println("theta = "+theta+"\tpos = "+posInformative.size()+"\tneg = "+negInformative.size());
-				
-				Collections.sort(posInformative, new GammaComparator());
-				Collections.sort(negInformative, new GammaComparator());
-						
-				ArrayList<Couple> posMostInformative = new ArrayList<Couple>();
-				ArrayList<Couple> negMostInformative = new ArrayList<Couple>();
-				
-				for(int i=0; posMostInformative.size() < k && i != posInformative.size(); i++) {
-					Couple c = posInformative.get(i);
-					if(!labelled.contains(c))
-						posMostInformative.add(c);
-				}
-				for(int i=0; negMostInformative.size() < k && i != negInformative.size(); i++) {
-					Couple c = negInformative.get(i);
-					if(!labelled.contains(c))
-						negMostInformative.add(c);
-				}
-				
-				long al0 = System.currentTimeMillis();
-				prTime += al0 - pr0;
-				
-				// active learning phase
-				ArrayList<Couple> poslbl = new ArrayList<Couple>();
-				ArrayList<Couple> neglbl = new ArrayList<Couple>();
-				
-				for(Couple c : labelled)
-					if(c.isPositive())
-						poslbl.add(c);
-					else
-						neglbl.add(c);
-				
-				for(Couple c : posMostInformative)
-					if(askOracle(c))
-						poslbl.add(c);
-					else
-						neglbl.add(c);
-				for(Couple c : negMostInformative)
-					if(askOracle(c))
-						poslbl.add(c);
-					else
-						neglbl.add(c);
-		
-				// search for one more pos/neg example if there are none
-				int n_added = 0;
-				loop: while(poslbl.size() < 1) {
-					f0r: for(Couple c : posInformative)
-						if(!poslbl.contains(c) && !neglbl.contains(c)) {
-							if(askOracle(c) == true) {
-								poslbl.add(c);
-								continue loop;
-							} else {
-								n_added++;
-								neglbl.add(c);
-								if(n_added == 2*k)
-									break f0r;
-							}
-						}
-					System.out.println("Labeled pos: "+poslbl.size());
-					System.out.println("Labeled neg: "+neglbl.size());
-					System.out.print("Too few positives found. ");
-					if(model == null) {
-						theta = theta + _beta;
-						System.out.println("Shifting theta ("+theta+")");
-					} else {
-						beta = beta + _beta;
-						System.out.println("Broadening beta ("+beta+")");
-					}
-					labelled.clear();
-					labelled.addAll(poslbl);
-					labelled.addAll(neglbl);
-					alTime += System.currentTimeMillis() - al0;
-					continue big;
-				}
-				n_added = 0;
-				loop: while(neglbl.size() < 1) {
-					f0r: for(Couple c : negInformative)
-						if(!poslbl.contains(c) && !neglbl.contains(c)) {
-							if(n_added == k)
-								break f0r;
-							if(askOracle(c) == false) {
-								neglbl.add(c);
-								continue loop;
-							} else {
-								n_added++;
-								poslbl.add(c);
-								if(n_added == 2*k)
-									break f0r;
-							}
-						}
-					System.out.println("Labeled pos: "+poslbl.size());
-					System.out.println("Labeled neg: "+neglbl.size());
-					System.out.print("Too few negatives found. ");
-					if(model == null) {
-						theta = theta - _beta;
-						System.out.println("Shifting theta ("+theta+")");
-					} else {
-						beta = beta + _beta;
-						System.out.println("Broadening beta ("+beta+")");
-					}
-					labelled.clear();
-					labelled.addAll(poslbl);
-					labelled.addAll(neglbl);
-					alTime += System.currentTimeMillis() - al0;
-					continue big;
-				}
-				
-				labelled.clear();
-				labelled.addAll(poslbl);
-				labelled.addAll(neglbl);
-				
-				System.out.println("Pos Labeled:");
-				for(Couple c : poslbl) {
-					for(double d : c.getDistances())
-						System.out.print(d+", ");
-					System.out.println("\t"+c+"\t"+c.getGamma());
-				}
-				System.out.println("Neg Labeled:");
-				for(Couple c : neglbl) {
-					for(double d : c.getDistances())
-						System.out.print(d+", ");
-					System.out.println("\t"+c+"\t"+c.getGamma());
-				}
-		
-				System.out.println("Labeled pos: "+poslbl.size());
-				System.out.println("Labeled neg: "+neglbl.size());
-		        System.out.println("Questions submitted: "+query_counter);
-				
-				long ml0 = System.currentTimeMillis();
-				alTime += ml0 - al0;
-		        
-		        // perceptron learning phase
-		        TreeSet<Couple> fpC = new TreeSet<Couple>();
-		        TreeSet<Couple> fnC = new TreeSet<Couple>();
-		        for(int i_perc=0; true; i_perc++) {
-		        	System.out.println("\nPerceptron: iteration #"+i_perc);
-		        	fnC.clear(); fpC.clear();
-		        	tp0 = 0; fp0 = 0; tn0 = 0; fn0 = 0;
-		        	
-		        	boolean classSucceed = traceSvm(poslbl, neglbl);
-		        	
-					for(Couple c : poslbl)
-						if(classify(c))
-							tp0++;
-						else {
-							fn0++;
-							fnC.add(c);
-						}
-					for(Couple c : neglbl)
-						if(classify(c)) {
-							fp0++;
-							fpC.add(c);
-						} else
-							tn0++;
-					
-			        if(perceptronEndCondition(classSucceed, i_perc, getFScore(tp0, fp0, tn0, fn0)))
-			        	break;
-			        else {
-			        	updateWeights(fpC, fnC);
-			        	updateSimilarities(fpC, fnC);
-			        }
-			    }
-		        
-		        mlTime += System.currentTimeMillis() - ml0;
-		        
-		        break;
+			max_queries = H;
+			labelled.clear();
+			query_counter = 0;
+			
+			while(intersection.size() < H/2) {
+				Resource s = sources.get((int) (sources.size() * Math.random()));
+				Resource t = targets.get((int) (targets.size() * Math.random()));
+				Couple c = new Couple(s, t);
+				if(intersection.contains(c))
+					continue;
+				intersection.add(c);
 			}
+			
+			while(intersection.size() < H) {
+				String oa = Test.getOraclesAnswers().get((int) (Test.getOraclesAnswers().size() * Math.random()));
+				String[] oas = oa.split("#");
+				String src = oas[0], tgt = oas[1];
+				Resource s = null, t = null;
+				for(Resource so : sources)
+					if(so.getID().equals(src)) {
+						s = so;
+						break;
+					}
+				for(Resource ta : targets)
+					if(ta.getID().equals(tgt)) {
+						t = ta;
+						break;
+					}
+				Couple c = new Couple(s, t);
+				if(intersection.contains(c))
+					continue;
+				c.setPositive(true);
+				intersection.add(c);
+			}
+			
+			query_counter = H;
+			labelled.addAll(intersection);
+			
+			for(Property p : props)
+				p.setNoisy(true);
+			
+			for(int i=0; i<n; i++) {
+				Property p = props.get(i);
+				if(p.isNoisy()) {
+					for(Couple c : intersection) {
+						Resource s = c.getSource();
+						Resource t = c.getTarget();
+						double d = props.get(i).getFilter().getDistance(s.getPropertyValue(p.getName()), t.getPropertyValue(p.getName()));
+						c.setDistance(d, p.getIndex());
+					}
+				}
+			}
+			
+			long al0 = System.currentTimeMillis();
+			prTime += al0 - pr0;
+			
+			// active learning phase
+			ArrayList<Couple> poslbl = new ArrayList<Couple>();
+			ArrayList<Couple> neglbl = new ArrayList<Couple>();
+			
+			for(Couple c : labelled)
+				if(c.isPositive())
+					poslbl.add(c);
+				else
+					neglbl.add(c);
+			
+			System.out.println("Labeled pos: "+poslbl.size());
+			System.out.println("Labeled neg: "+neglbl.size());
+			
+			labelled.clear();
+			labelled.addAll(poslbl);
+			labelled.addAll(neglbl);
+			
+			System.out.println("Pos Labeled:");
+			for(Couple c : poslbl) {
+				for(double d : c.getDistances())
+					System.out.print(d+", ");
+				System.out.println("\t"+c);
+			}
+			System.out.println("Neg Labeled:");
+			for(Couple c : neglbl) {
+				for(double d : c.getDistances())
+					System.out.print(d+", ");
+				System.out.println("\t"+c);
+			}
+	
+			System.out.println("Labeled pos: "+poslbl.size());
+			System.out.println("Labeled neg: "+neglbl.size());
+	        System.out.println("Questions submitted: "+query_counter);
+			
+			long ml0 = System.currentTimeMillis();
+			alTime += ml0 - al0;
+	        
+			traceSvm(poslbl, neglbl);
+				        
+	        mlTime += System.currentTimeMillis() - ml0;
+	        
 		}
         
         for(Property p : props)
@@ -658,8 +527,8 @@ public class MainAlgorithm extends TestUnit {
 				}
 			}
 		}
+		
 		System.out.println();
-        
 		Fscore f = new Fscore("", tp, fp, tn, fn);
 		f.print();
 		return f;

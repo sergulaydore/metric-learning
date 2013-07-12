@@ -14,8 +14,6 @@ public class MahalaFilter extends StandardFilter {
 
 	private ArrayList<Double> extrema = new ArrayList<Double>();
 	
-	// TODO introduce weights and true Mahalanobis calculation
-	
 	public MahalaFilter(Property p) {
 		property = p;
 	}
@@ -103,6 +101,11 @@ public class MahalaFilter extends StandardFilter {
 			return 1.0;
 		else
 			return 1.0 - value / denom;
+	}
+
+	@Override
+	public void init(ArrayList<Resource> sources, ArrayList<Resource> targets) {
+		// this is for tf-idf indexing. leave blank.
 	}
 
 }

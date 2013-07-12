@@ -207,5 +207,11 @@ public class PassJoin extends WeightedEditDistanceFilter {
 		return new HashMap<String, Double>();
 	}
 
+	@Override
+	public void init(ArrayList<Resource> sources, ArrayList<Resource> targets) {
+		// TODO Auto-generated method stub
+		
+	}
+
 
 }

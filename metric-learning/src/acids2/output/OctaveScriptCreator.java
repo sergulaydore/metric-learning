@@ -1,4 +1,4 @@
-package acids.output;
+package acids2.output;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;

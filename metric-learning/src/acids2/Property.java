@@ -2,7 +2,6 @@ package acids2;
 
 import filters.StandardFilter;
 import filters.mahalanobis.MahalaFilter;
-import filters.reeding.HybridFilter;
 import filters.reeding.CrowFilter;
 
 public class Property {
@@ -16,6 +15,16 @@ public class Property {
 	private StandardFilter filter;
 
 	private boolean noisy = false;
+	
+	private boolean filtered = false;
+
+	public boolean isFiltered() {
+		return filtered;
+	}
+
+	public void setFiltered(boolean filtered) {
+		this.filtered = filtered;
+	}
 
 	private int index;
 
@@ -26,7 +35,7 @@ public class Property {
 		this.index = index;
 		switch(datatype) {
 		case TYPE_STRING:
-			this.filter = new HybridFilter(this);
+			this.filter = new CrowFilter(this); // HybridFilter(this);
 			break;
 		case TYPE_NUMERIC:
 			this.filter = new MahalaFilter(this);
@@ -35,7 +44,7 @@ public class Property {
 			this.filter = new MahalaFilter(this);
 			break;
 		default: // string comparison always works.
-			this.filter = new HybridFilter(this);
+			this.filter = new CrowFilter(this); // HybridFilter(this);
 			break;
 		}
 	}

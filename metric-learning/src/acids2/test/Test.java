@@ -8,8 +8,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.TreeSet;
 
+import acids2.ActiveSetting;
 import acids2.MainAlgorithm;
+import acids2.NaiveSetting;
+import acids2.RandomSetting;
 import acids2.Resource;
+import acids2.output.Fscore;
+import acids2.output.FscoreWriter;
 import au.com.bytecode.opencsv.CSVReader;
 
 public class Test {
@@ -22,7 +27,7 @@ public class Test {
     static {
     	ignoredList.add("id");
     	ignoredList.add("venue");
-//    	ignoredList.add("description");
+    	ignoredList.add("manufacturer");
 //    	ignoredList.add("price");
     }
 
@@ -32,7 +37,7 @@ public class Test {
 	 */
 	public static void main(String[] args) throws IOException {
 		
-//		buildTinyDataset("data/1-dblp-acm/", "data/01-tiny/");
+//		buildTinyDataset("data/3-amazon-googleproducts/", "data/03-tiny/");
 //		System.exit(0);
 				
 		String datasetPath = args[0];
@@ -42,6 +47,8 @@ public class Test {
 		int k = Integer.parseInt(args[1]);
 		double beta = Double.parseDouble(args[2]);
 		int mip = Integer.parseInt(args[3]);
+		int H = Integer.parseInt(args[4]);
+		boolean tfidf = Boolean.parseBoolean(args[5]);
 		
 		String sourcePath = "data/" + datasetPath + "/sources.csv";
 		String targetPath = "data/" + datasetPath + "/targets.csv";
@@ -51,8 +58,20 @@ public class Test {
 		loadMappings(mappingPath);
 		
 		System.out.println("dataset = "+datasetPath+"\tk = "+k+"\tbeta = "+beta);
-		MainAlgorithm.start(sources, targets, k, beta, mip);
-		
+		int N = 1;
+		ArrayList<Fscore> fsl = new ArrayList<Fscore>();
+		for(int i=0; i<N; i++) {
+//			MainAlgorithm ma = new MainAlgorithm(sources, targets, k, beta, mip, tfidf);
+//			RandomSetting ma = new RandomSetting(sources, targets, k, beta, mip, H, tfidf);
+//			NaiveSetting ma = new NaiveSetting(sources, targets, H, tfidf, datasetPath);
+			ActiveSetting ma = new ActiveSetting(sources, targets, H, tfidf, datasetPath);
+			fsl.add(ma.getFs());
+		}
+//		try {
+//			FscoreWriter.write(datasetPath + "_" + tfidf + "_" + H, fsl);
+//		} catch (NullPointerException e) {
+//			System.out.println("No f-score to print out.");
+//		}
 	}
 
     private static void loadKnowledgeBases(String sourcePath, String targetPath) throws IOException {

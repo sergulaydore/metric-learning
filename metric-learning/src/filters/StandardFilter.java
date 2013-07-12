@@ -22,6 +22,8 @@ public abstract class StandardFilter {
 	
 	public abstract HashMap<String, Double> getWeights();
 
+	public abstract void init(ArrayList<Resource> sources, ArrayList<Resource> targets);
+	
 	protected boolean verbose = true;
 	
 	protected Property property = null;

@@ -52,6 +52,7 @@ public class Resource implements Comparable<Resource> {
         propertyOrder.add(p);
     }
     
+    // TODO Change to MultiSimDatatype!
     public int checkDatatype(String prop) {
     	if(this.getPropertyValue(prop).equals(""))
     		return Property.TYPE_NUMERIC;

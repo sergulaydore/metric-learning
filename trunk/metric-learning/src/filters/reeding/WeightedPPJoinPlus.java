@@ -11,7 +11,7 @@ import java.util.TreeSet;
 
 import utility.StringUtilities;
 
-import filters.WeightedNgramFilter;
+import filters.WeightedNGramFilter;
 
 import acids2.Couple;
 import acids2.Resource;
@@ -37,9 +37,9 @@ public class WeightedPPJoinPlus {
 		ArrayList<Record> tgt = new ArrayList<Record>(); // R_t
 		
 		for(Resource r : srcArray)
-			src.add(new Record(WeightedNgramFilter.getNgrams(r.getPropertyValue(propertyName), n), r));
+			src.add(new Record(WeightedNGramFilter.getNgrams(r.getPropertyValue(propertyName), n), r));
 		for(Resource r : tgtArray)
-			tgt.add(new Record(WeightedNgramFilter.getNgrams(r.getPropertyValue(propertyName), n), r));
+			tgt.add(new Record(WeightedNGramFilter.getNgrams(r.getPropertyValue(propertyName), n), r));
 		
 		Collections.sort(src, new RecordComparator());
 		Collections.sort(tgt, new RecordComparator());

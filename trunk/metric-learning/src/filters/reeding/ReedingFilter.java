@@ -6,7 +6,7 @@ import java.util.TreeSet;
 import acids2.Couple;
 import acids2.Property;
 import acids2.Resource;
-import filters.WeightedNgramFilter;
+import filters.WeightedNGramFilter;
 
 /**
  * Rapid Execution of weightED N-Grams (REEDiNG) filter.
@@ -14,7 +14,7 @@ import filters.WeightedNgramFilter;
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class ReedingFilter extends WeightedNgramFilter {
+public class ReedingFilter extends WeightedNGramFilter {
 	
 	public ReedingFilter(Property p) {
 		super();

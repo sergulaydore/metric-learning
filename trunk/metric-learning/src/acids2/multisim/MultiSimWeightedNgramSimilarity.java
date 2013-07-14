@@ -1,4 +1,4 @@
-package filters;
+package acids2.multisim;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -7,12 +7,39 @@ import java.util.TreeSet;
 
 import acids2.Resource;
 
-public abstract class WeightedNgramFilter extends StandardFilter {
+public class MultiSimWeightedNgramSimilarity extends MultiSimStringSimilarity {
+	
+	public MultiSimWeightedNgramSimilarity(MultiSimProperty property, int index) {
+		super(property, index);
+		
+		// load tf-idf weights
+//		init(property.getMeasures().getSetting().getSources(), property.getMeasures().getSetting().getTargets());
+	}
+
+	@Override
+	public String getName() {
+		return "Weighted N-gram Similarity";
+	}
+
+	@Override
+	public int getDatatype() {
+		return MultiSimDatatype.TYPE_STRING;
+	}
+
+	@Override
+	public double getSimilarity(String a, String b) {
+		return this.computeSimilarity(a, b, n);
+	}
+	
+	@Override
+	public MultiSimProperty getProperty() {
+		return property;
+	}
 
 	/**
 	 * The "n" of n-grams. Default is trigram.
 	 */
-	protected int n = 3;
+	private int n = 3;
 	
 	/**
 	 * Update interval for weights.
@@ -23,8 +50,10 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 	private TreeSet<String> ngCacheIncrease = new TreeSet<String>();
 	private TreeSet<String> ngCacheDecrease = new TreeSet<String>();
 	
+	private MultiSimCrowFilter filter = new MultiSimCrowFilter(this); 
 	
-	public void init(ArrayList<Resource> sources, ArrayList<Resource> targets) {
+	@SuppressWarnings("unused")
+	private void init(ArrayList<Resource> sources, ArrayList<Resource> targets) {
 		ArrayList<Resource> all = new ArrayList<Resource>();
 		all.addAll(sources);
 		all.addAll(targets);
@@ -69,7 +98,6 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 			if(d > max)
 				max = d;
 		for(String k : weights.keySet())
-			// TODO generate new tf-idf testset.txt and try with '1.0 - weights.get(k) / max'
 			weights.put(k, weights.get(k) / max);
 		
 		System.out.println(weights);
@@ -83,7 +111,7 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 		this.n = n;
 	}
 
-	public double distance(String s1, String s2, int n) {
+	private double computeSimilarity(String s1, String s2, int n) {
 		ArrayList<String> ng1 = getNgrams(s1, n);
 		ArrayList<String> ng2 = getNgrams(s2, n);
 		ArrayList<String> ngint = intersect(ng1, ng2);
@@ -115,7 +143,7 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 	    return intset;
 	}
 	
-	public static ArrayList<String> getNgrams(String s, int n) {
+	protected ArrayList<String> getNgrams(String s, int n) {
 		s = s.toLowerCase();
 		ArrayList<String> ngrams = new ArrayList<String>();
 		for(int i=0; i<n-1; i++)
@@ -156,13 +184,6 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 			weights.put(ng, dnew);
 //			System.out.println("COST("+ng+") = "+dnew);
 		}
-//		// normalization. may be optimized: if(!ngCacheIncrease.isEmpty()) max = 1.0 + DELTA; else skip norm.
-//		double max = Double.NEGATIVE_INFINITY;
-//		for(Double d : weights.values())
-//			if(d > max)
-//				max = d;
-//		for(String key : weights.keySet())
-//			weights.put(key, weights.get(key) / max);
 		
 		ngCacheIncrease.clear();
 		ngCacheDecrease.clear();
@@ -192,10 +213,9 @@ public abstract class WeightedNgramFilter extends StandardFilter {
 		this.weights = weights;
 	}
 
-	
 	@Override
-	public double getDistance(String sp, String tp) {
-		return distance(sp, tp, n);
+	public MultiSimFilter getFilter() {
+		return filter;
 	}
 
 }

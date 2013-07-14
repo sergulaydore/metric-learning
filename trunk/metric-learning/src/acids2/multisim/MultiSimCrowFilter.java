@@ -1,12 +1,10 @@
-package filters.reeding;
+package acids2.multisim;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
 import acids2.Couple;
-import acids2.Property;
 import acids2.Resource;
-import filters.WeightedNGramFilter;
 
 /**
  * 
@@ -14,11 +12,13 @@ import filters.WeightedNGramFilter;
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class CrowFilter extends WeightedNGramFilter {
+public class MultiSimCrowFilter extends MultiSimFilter {
 		
-	public CrowFilter(Property p) {
-		super();
-		property = p;
+	private MultiSimWeightedNgramSimilarity wngs;
+	
+	public MultiSimCrowFilter(MultiSimSimilarity similarity) {
+		super(similarity);
+		wngs = (MultiSimWeightedNgramSimilarity) similarity;
 	}
 	
 	@Override
@@ -29,7 +29,7 @@ public class CrowFilter extends WeightedNGramFilter {
 
 		long start = System.currentTimeMillis();
 		
-		double tmu = theta * getMinWeight();
+		double tmu = theta * wngs.getMinWeight();
 		double upper = (2 - tmu) / tmu;
 		double lower = tmu / (2 - tmu);
 		double kappa = (2 - theta) / theta;
@@ -43,11 +43,11 @@ public class CrowFilter extends WeightedNGramFilter {
 			if(w_minus <= wt && wt <= w_plus) {
 				// index-based filter
 				double t0 = sw(tgt), s1 = mw(src), s0 = sw(src), t1 = mw(tgt);
-				ArrayList<String> ng0s = getNgrams(s.getPropertyValue(propertyName), n);
-				ArrayList<String> ng0t = getNgrams(t.getPropertyValue(propertyName), n);
+				ArrayList<String> ng0s = wngs.getNgrams(s.getPropertyValue(propertyName), wngs.getN());
+				ArrayList<String> ng0t = wngs.getNgrams(t.getPropertyValue(propertyName), wngs.getN());
 				int ngs = ng0s.size(), ngt = ng0t.size();
 				double k = theta * Math.min(s0, t0) / 2 * (s1 * ngs + t1 * ngt);
-				ArrayList<String> share = intersect(ng0s, ng0t);
+				ArrayList<String> share = wngs.intersect(ng0s, ng0t);
 				if(share.size() >= k) {
 					// length-aware filter
 					if(ngs <= ngt * upper && ngs >= ngt * lower) {
@@ -56,9 +56,9 @@ public class CrowFilter extends WeightedNGramFilter {
 //						double lower2 = (theta * t1) / (2 * t0 - theta * s1);
 //						if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
 							// similarity calculation
-							double sim = this.getDistance(src, tgt);
+							double sim = similarity.getSimilarity(src, tgt);
 							if(sim >= theta) {
-								c.setDistance(sim, this.property.getIndex());
+								c.setDistance(sim, similarity.getIndex());
 								results.add(c);
 							}
 //						}
@@ -86,7 +86,7 @@ public class CrowFilter extends WeightedNGramFilter {
 
 		long start = System.currentTimeMillis();
 				
-		double tmu = theta * getMinWeight();
+		double tmu = theta * wngs.getMinWeight();
 		double upper = (2 - tmu) / tmu;
 		double lower = tmu / (2 - tmu);
 		
@@ -94,7 +94,7 @@ public class CrowFilter extends WeightedNGramFilter {
 		HashMap<Resource, Double> ngWs = new HashMap<Resource, Double>();
 		for(Resource s : sources) {
 			String src = s.getPropertyValue(propertyName);
-			ngLs.put(s, getNgrams(src, n));
+			ngLs.put(s, wngs.getNgrams(src, wngs.getN()));
 			ngWs.put(s, weightSum(src));
 		}
 		HashMap<Resource, ArrayList<String>> ngLt = new HashMap<Resource, ArrayList<String>>();
@@ -102,7 +102,7 @@ public class CrowFilter extends WeightedNGramFilter {
 		HashMap<Resource, Double> t0t = new HashMap<Resource, Double>();
 		for(Resource t : targets) {
 			String tgt = t.getPropertyValue(propertyName);
-			ngLt.put(t, getNgrams(tgt, n));
+			ngLt.put(t, wngs.getNgrams(tgt, wngs.getN()));
 			ngWt.put(t, weightSum(tgt));
 			t0t.put(t, sw(tgt));
 		}
@@ -125,7 +125,7 @@ public class CrowFilter extends WeightedNGramFilter {
 					ArrayList<String> ng0t = ngLt.get(t);
 					int ngt = ng0t.size();
 					double k = theta * Math.min(s0, t0) / 2 * (s1 * ngs + t1 * ngt);
-					ArrayList<String> share = intersect(ng0s, ng0t);
+					ArrayList<String> share = wngs.intersect(ng0s, ng0t);
 					if(share.size() >= k) {
 						c4++;
 						// length-aware filter
@@ -137,10 +137,10 @@ public class CrowFilter extends WeightedNGramFilter {
 //							if(ngs <= ngt * upper2 && ngs >= ngt * lower2) {
 								c3++;
 								// similarity calculation
-								double sim = this.getDistance(src, tgt);
+								double sim = similarity.getSimilarity(src, tgt);
 								if(sim >= theta) {
 									Couple c = new Couple(s, t);
-									c.setDistance(sim, this.property.getIndex());
+									c.setDistance(sim, similarity.getIndex());
 									results.add(c);
 								}
 //							}
@@ -164,17 +164,17 @@ public class CrowFilter extends WeightedNGramFilter {
 	private ArrayList<String> removeZeros(ArrayList<String> ngrams) {
 		ArrayList<String> output = new ArrayList<String>();
 		for(String ng : ngrams)
-			if(getWeight(ng) > 0)
+			if(wngs.getWeight(ng) > 0)
 				output.add(ng);
 		return output;
 	}
 
 
 	private double sw(String s) {
-		ArrayList<String> ngs = getNgrams(s, n);
+		ArrayList<String> ngs = wngs.getNgrams(s, wngs.getN());
 		double min = 1;
 		for(String ng : ngs) {
-			double w = getWeight(ng);
+			double w = wngs.getWeight(ng);
 			if(w < min)
 				min = w;
 		}
@@ -182,10 +182,10 @@ public class CrowFilter extends WeightedNGramFilter {
 	}
 	
 	private double mw(String s) {
-		ArrayList<String> ngs = getNgrams(s, n);
+		ArrayList<String> ngs = wngs.getNgrams(s, wngs.getN());
 		double max = 0;
 		for(String ng : ngs) {
-			double w = getWeight(ng);
+			double w = wngs.getWeight(ng);
 			if(w > max)
 				max = w;
 		}
@@ -193,10 +193,10 @@ public class CrowFilter extends WeightedNGramFilter {
 	}
 
 	private double weightSum(String s) {
-		ArrayList<String> ngs = getNgrams(s, n);
+		ArrayList<String> ngs = wngs.getNgrams(s, wngs.getN());
 		double sum = 0;
 		for(String ng : ngs)
-			sum += getWeight(ng);
+			sum += wngs.getWeight(ng);
 		return sum;
 	}
 

@@ -1,4 +1,4 @@
-package filters.reeding;
+package acids2.multisim;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -7,32 +7,27 @@ import java.util.Vector;
 import utility.Transform;
 
 import acids2.Couple;
-import acids2.Property;
 import acids2.Resource;
-import filters.WeightedEditDistanceFilter;
-import filters.WeightedNGramFilter;
 
 /**
- * Hybrid blocking system which combines the Rapid Execution of weightED 
- * Edit Distance (REEDED) filter with the weighted n-gram similarity.
- * 
  * @author Tommaso Soru <tsoru@informatik.uni-leipzig.de>
  *
  */
-public class HybridFilter extends WeightedNGramFilter {
+public class MultiSimReededFilter extends MultiSimFilter {
 	
-	public HybridFilter(Property p) {
-		super();
-		property = p;
+	public MultiSimReededFilter(MultiSimSimilarity similarity) {
+		super(similarity);
 	}
 	
 	@Override
 	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
-			String propertyName, double theta) {
+			String propertyName, double _theta) {
 		
+		double theta = Transform.toDistance(_theta);
+
 		ArrayList<Couple> results = new ArrayList<Couple>();
 
-        double tau = Transform.toDistance(theta) / WeightedEditDistanceFilter.INIT_CASE_WEIGHT;
+		double tau = theta / ((MultiSimWeightedEditSimilarity) similarity).getMinWeight();
 		
 		long start = System.currentTimeMillis();
 		
@@ -71,11 +66,13 @@ public class HybridFilter extends WeightedNGramFilter {
 
 	@Override
 	public ArrayList<Couple> filter(ArrayList<Resource> sources,
-			ArrayList<Resource> targets, String propertyName, double theta) {
+			ArrayList<Resource> targets, String propertyName, double _theta) {
+		
+		double theta = Transform.toDistance(_theta);
 		
 		ArrayList<Couple> results = new ArrayList<Couple>();
 
-        double tau = Transform.toDistance(theta) / WeightedEditDistanceFilter.INIT_CASE_WEIGHT;
+		double tau = theta / ((MultiSimWeightedEditSimilarity) similarity).getMinWeight();
 		
 		long start = System.currentTimeMillis();
 		
@@ -90,8 +87,6 @@ public class HybridFilter extends WeightedNGramFilter {
 		for(Resource t : targets) {
 			String tp = t.getPropertyValue(propertyName);
 			Vector<Character> ct = new Vector<Character>();
-			if(tp == null)
-				System.out.println(t.getID());
 			for(int i=0; i<tp.length(); i++)
 				ct.add(tp.charAt(i));
 			index.put(tp, ct);
@@ -103,7 +98,7 @@ public class HybridFilter extends WeightedNGramFilter {
 				reededCore(s, t, sp, tp, index.get(sp), index.get(tp), tau, theta, results);
 			}
 		}
-		
+				
 		if(this.isVerbose()) {
 			double compTime = (System.currentTimeMillis()-start)/1000.0;
 			System.out.println("REEDED: Join done in "+compTime+" seconds.");
@@ -128,10 +123,10 @@ public class HybridFilter extends WeightedNGramFilter {
 			// (...) + (size % 2);
 			if(Math.ceil(exclDisjSize(cs, ct) / 2.0) <= tau) {
 				//  Verification.
-				double sim = this.getDistance(sp, tp);
-				if(sim >= theta) {
+				double d = similarity.getSimilarity(sp, tp);
+				if(d <= theta) {
 					Couple c = new Couple(s, t);
-					c.setDistance(sim, this.property.getIndex());
+					c.setDistance(d, similarity.getIndex());
 					results.add(c);
 				}
 			}

@@ -13,6 +13,7 @@ import acids2.MainAlgorithm;
 import acids2.NaiveSetting;
 import acids2.RandomSetting;
 import acids2.Resource;
+import acids2.multisim.MultiSimSetting;
 import acids2.output.Fscore;
 import acids2.output.FscoreWriter;
 import au.com.bytecode.opencsv.CSVReader;
@@ -64,7 +65,9 @@ public class Test {
 //			MainAlgorithm ma = new MainAlgorithm(sources, targets, k, beta, mip, tfidf);
 //			RandomSetting ma = new RandomSetting(sources, targets, k, beta, mip, H, tfidf);
 //			NaiveSetting ma = new NaiveSetting(sources, targets, H, tfidf, datasetPath);
-			ActiveSetting ma = new ActiveSetting(sources, targets, H, tfidf, datasetPath);
+//			ActiveSetting ma = new ActiveSetting(sources, targets, H, tfidf, datasetPath);
+			MultiSimSetting ma = new MultiSimSetting(sources, targets, H, datasetPath);
+			
 			fsl.add(ma.getFs());
 		}
 //		try {

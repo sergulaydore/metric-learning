@@ -20,7 +20,7 @@ import acids2.output.SageScriptCreator;
 import acids2.plot.Svm3D;
 import acids2.test.Test;
 import filters.StandardFilter;
-import filters.WeightedNgramFilter;
+import filters.WeightedNGramFilter;
 import filters.mahalanobis.MahalaFilter;
 import filters.reeding.CrowFilter;
 
@@ -398,7 +398,7 @@ public class RandomSetting extends TestUnit {
 		for(Property p : props) {
 			if(p.getDatatype() == Property.TYPE_STRING) {
 				// TODO find alternative to casting: method .prepare() in StandardFilter
-				WeightedNgramFilter rf = (WeightedNgramFilter)(p.getFilter());
+				WeightedNGramFilter rf = (WeightedNGramFilter)(p.getFilter());
 				String pname = p.getName();
 				for(Couple c : fpC)
 					rf.prepareNgCache(c.getSource().getPropertyValue(pname), 

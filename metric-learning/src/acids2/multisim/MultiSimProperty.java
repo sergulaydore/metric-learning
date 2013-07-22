@@ -8,8 +8,6 @@ public class MultiSimProperty {
 	private int datatype;
 	private MultiSimMeasures measures;
 
-	private boolean filtered = false;
-
 	private ArrayList<MultiSimSimilarity> similarities = new ArrayList<MultiSimSimilarity>();
 
 	public ArrayList<MultiSimSimilarity> getSimilarities() {
@@ -24,17 +22,17 @@ public class MultiSimProperty {
 		
 		switch(datatype) {
 		case MultiSimDatatype.TYPE_STRING:
-			similarities.add(new MultiSimWeightedEditSimilarity(this, index));
-			similarities.add(new MultiSimWeightedNgramSimilarity(this, index + 1));
-			similarities.add(new MultiSimCosineSimilarity(this, index + 2));
+			similarities.add(new MultiSimWeightedNgramSimilarity(this, index));
+//			similarities.add(new MultiSimWeightedEditSimilarity(this, index + 1));
+			similarities.add(new MultiSimCosineSimilarity(this, index + 1));
 			break;
 		case MultiSimDatatype.TYPE_NUMERIC:
 			similarities.add(new MultiSimNumericSimilarity(this, index));
 			break;
 		case MultiSimDatatype.TYPE_DATETIME: // TODO datetime similarity and filtering?
-			similarities.add(new MultiSimWeightedEditSimilarity(this, index));
-			similarities.add(new MultiSimWeightedNgramSimilarity(this, index + 1));
-			similarities.add(new MultiSimCosineSimilarity(this, index + 2));
+			similarities.add(new MultiSimWeightedNgramSimilarity(this, index));
+//			similarities.add(new MultiSimWeightedEditSimilarity(this, index + 1));
+			similarities.add(new MultiSimCosineSimilarity(this, index + 1));
 			break;
 		default:
 			System.err.println("Error: Invalid datatype for property " + name + ".");
@@ -62,14 +60,6 @@ public class MultiSimProperty {
 		this.datatype = datatype;
 	}
 	
-	public boolean isFiltered() {
-		return filtered;
-	}
-
-	public void setFiltered(boolean filtered) {
-		this.filtered = filtered;
-	}
-
 	public int getSize() {
 		return similarities.size();
 	}

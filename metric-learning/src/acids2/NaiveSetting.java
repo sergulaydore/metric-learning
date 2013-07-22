@@ -8,6 +8,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Scanner;
 
+import libsvm.svm_parameter;
+
 import utility.GammaComparator;
 import acids2.classifiers.svm.SvmHandler;
 import acids2.output.CoupleStore;
@@ -37,7 +39,7 @@ public class NaiveSetting extends TestUnit {
 		this.k = k;
 		this.tfidf = tfidf;
 		
-		m = new SvmHandler();
+		m = new SvmHandler(svm_parameter.POLY);
 		
 		initialization();
 		
@@ -80,7 +82,7 @@ public class NaiveSetting extends TestUnit {
 //				System.out.println("Done.");
 //			}
 
-			m = new SvmHandler();
+			m = new SvmHandler(svm_parameter.POLY);
 			m.setN(props.size());
 			m.initW();
 			m.setTheta(theta);
@@ -304,7 +306,7 @@ public class NaiveSetting extends TestUnit {
 	}
 
 	private double computeGammaLinear(Couple c) {
-		double[] w = m.getW();
+		double[] w = m.getWLinear();
 		ArrayList<Double> dist = c.getDistances();
 		double numer = 0.0, denom = 0.0;
 		for(int i=0; i<dist.size(); i++) {

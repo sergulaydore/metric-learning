@@ -2,6 +2,10 @@ package acids2.classifiers.svm;
 
 import java.util.ArrayList;
 
+import org.math.array.LinearAlgebra;
+
+import utility.SvmUtils;
+
 import libsvm.svm;
 import libsvm.svm_model;
 import libsvm.svm_node;
@@ -15,29 +19,24 @@ public class SvmHandler {
 	// SVM parameters
 	private svm_model model;
 	private svm_problem problem;
-	private int KERNEL = svm_parameter.POLY;
+	private int kernel;
 	private final int DEGREE = 2;
 	private final int COEF0 = 0;
 	private final double GAMMA = 1;
 	private final double C_min = 1E+2;
-	private final double C_max = 1E+2;
+//	private final double C_max = 1E+2;
 	private double C_opt;
-	private final double EPS = 1E-6;
+	private final double EPS = 1E-3;
 	
 	// classifier properties
 	private double[][] sv_d;
-	private double[] w;
 	
-	public void setW(double[] w) {
-		this.w = w;
-	}
-
-	public double[] getW() {
-		return w;
-	}
-
 	private double[] wLinear;
 	
+	public void setWLinear(double[] wLinear) {
+		this.wLinear = wLinear;
+	}
+
 	public double[] getWLinear() {
 		return wLinear;
 	}
@@ -45,8 +44,8 @@ public class SvmHandler {
 	private double theta;
 	private int n;
 	
-	public SvmHandler() {
-		
+	public SvmHandler(int kernel) {
+		this.kernel = kernel;
 	}
 
 	public void setN(int n) {
@@ -60,7 +59,7 @@ public class SvmHandler {
 	public boolean trace(ArrayList<Couple> poslbl, ArrayList<Couple> neglbl) {
     	
         int size = poslbl.size() + neglbl.size();
-
+        
         // build x,y vectors
         svm_node[][] x = new svm_node[size][n];
         double[] y = new double[size];
@@ -91,8 +90,8 @@ public class SvmHandler {
         problem.y = y;
         svm_parameter parameter = new svm_parameter();
         parameter.svm_type = svm_parameter.C_SVC;
-        parameter.kernel_type = KERNEL;
-        if(KERNEL == svm_parameter.POLY) {
+        parameter.kernel_type = kernel;
+        if(kernel == svm_parameter.POLY) {
 			parameter.degree = DEGREE; // default: 3
 			parameter.coef0  = COEF0; // default: 0
 			parameter.gamma  = GAMMA; // default: 1/n
@@ -105,18 +104,18 @@ public class SvmHandler {
         couples.addAll(neglbl);
         double f_max = 0.0;
         C_opt = C_min;
-        for(double C=C_min; C<=C_max; C*=10) {
-            parameter.C = C;
-            model = svm.svm_train(problem, parameter);
-        	Fscore f = evaluateOn(couples);
-        	double f1 = f.getF1();
-        	if(f1 > f_max) {
-        		f_max = f1;
-        		C_opt = C;
-        	}
-        	if(f1 == 1.0)
-        		break; // Ockham's razor.
-        }
+//        for(double C=C_min; C<=C_max; C*=10) {
+//            parameter.C = C;
+//            model = svm.svm_train(problem, parameter);
+//        	Fscore f = evaluateOn(couples);
+//        	double f1 = f.getF1();
+//        	if(f1 > f_max) {
+//        		f_max = f1;
+//        		C_opt = C;
+//        	}
+//        	if(f1 == 1.0)
+//        		break; // Ockham's razor.
+//        }
         
         // assign best parameter
         System.out.println("Optimization finished: f_max = "+f_max+", C_opt = "+C_opt);
@@ -139,19 +138,39 @@ public class SvmHandler {
             for(int i=0; i<sv[j].length; i++)
             	sv_d[j][i] = sv[j][i].value;
         
-        // w = sv' * sv_coef' = (sv_coef * sv)' = ( n ; 1 )
-        double[][] phis = new double[sv.length][];
-        for(int i=0; i<phis.length; i++)
-        	phis[i] = phi(sv_d[i]);
-        
-        wLinear = new double[phis[0].length];
-        
-        for(int i=0; i<phis.length; i++)
-        	for(int j=0; j<phis[i].length; j++)
-        		wLinear[j] += sv_coef[0][i] * phis[i][j];
-        
         int signum = (model.label[0] == -1.0) ? -1 : 1;
         theta = signum * model.rho[0];
+        
+        switch(kernel) {
+        case svm_parameter.LINEAR:
+	        double[][] w = new double[sv[0].length][sv_coef.length];
+	        signum = (model.label[0] == -1.0) ? 1 : -1;
+	        
+	        w = LinearAlgebra.transpose(LinearAlgebra.times(sv_coef, SvmUtils.nodeToDouble(sv)));
+	        
+	        wLinear = new double[w.length];
+
+	        for(int i=0; i<wLinear.length; i++)
+	        	wLinear[i] = signum * w[i][0];
+	        
+	        break;
+	        
+        case svm_parameter.POLY:
+	        // w = sv' * sv_coef' = (sv_coef * sv)' = ( n ; 1 )
+	        double[][] phis = new double[sv.length][];
+	        for(int i=0; i<phis.length; i++)
+	        	phis[i] = phi(sv_d[i]);
+	        
+	        wLinear = new double[phis[0].length];
+	        
+	        for(int i=0; i<phis.length; i++)
+	        	for(int j=0; j<phis[i].length; j++)
+	        		wLinear[j] += sv_coef[0][i] * phis[i][j];
+	        
+	        break;
+	    default:
+	    	System.err.println("Kernel not supported: "+kernel);
+        }
         
         // theta is normally at the first member in the classification inequality
 //        theta_plot = -theta;
@@ -167,7 +186,7 @@ public class SvmHandler {
         return true;
     }
 	
-	private Fscore evaluateOn(ArrayList<Couple> couples) {
+	public Fscore evaluateOn(ArrayList<Couple> couples) {
 		double tp = 0, tn = 0, fp = 0, fn = 0;
 		for(Couple c : couples) {
 			if(c.isPositive()) {
@@ -216,9 +235,9 @@ public class SvmHandler {
 	}
 
 	public void initW() {
-		w = new double[n];
+		wLinear = new double[n];
 		for(int i=0; i<n; i++)
-			w[i] = 1.0;
+			wLinear[i] = 1.0;
 	}
 	
 	public boolean classify(Couple c) {
@@ -227,7 +246,7 @@ public class SvmHandler {
 			double sum = 0.0;
 			ArrayList<Double> dist = c.getDistances();
 			for(int i=0; i<dist.size(); i++)
-				sum += dist.get(i) * w[i];
+				sum += dist.get(i) * wLinear[i];
 			return sum >= theta; 
 		}
         svm_node[] node = new svm_node[n];
@@ -282,15 +301,23 @@ public class SvmHandler {
 			System.out.println("theta = "+theta+"\tdelta = "+delta+"\tpc = "+pc+"\taimpc = "+mapSize);
 		}
 	}
+	
+	public double computeGamma(Couple c, double point) {
+		double sum = 0.0;
+		ArrayList<Double> dist = c.getDistances();
+		for(Double d : dist)
+			sum += Math.pow(d - point, 2.0);
+		return Math.sqrt(sum);
+	}
 
     public double computeGamma(Couple c) {
 		ArrayList<Double> dist = c.getDistances();
-		if(model == null) {
+		if(model == null || kernel == svm_parameter.LINEAR) {
 			// Default classifier...
 	        double numer = 0.0, denom = 0.0;
 	        for(int i=0; i<dist.size(); i++) {
-	            numer += dist.get(i) * w[i];
-	            denom += Math.pow(w[i], 2);
+	            numer += dist.get(i) * wLinear[i];
+	            denom += Math.pow(wLinear[i], 2);
 	        }
 	        numer -= theta;
 	        return Math.abs(numer/Math.sqrt(denom));

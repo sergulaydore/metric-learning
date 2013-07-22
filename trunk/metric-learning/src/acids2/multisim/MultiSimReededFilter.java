@@ -21,13 +21,11 @@ public class MultiSimReededFilter extends MultiSimFilter {
 	
 	@Override
 	public ArrayList<Couple> filter(ArrayList<Couple> intersection,
-			String propertyName, double _theta) {
+			String propertyName, double theta) {
 		
-		double theta = Transform.toDistance(_theta);
-
 		ArrayList<Couple> results = new ArrayList<Couple>();
 
-		double tau = theta / ((MultiSimWeightedEditSimilarity) similarity).getMinWeight();
+		double tau = Transform.toDistance(theta) / ((MultiSimWeightedEditSimilarity) similarity).getMinWeight();
 		
 		long start = System.currentTimeMillis();
 		
@@ -66,13 +64,11 @@ public class MultiSimReededFilter extends MultiSimFilter {
 
 	@Override
 	public ArrayList<Couple> filter(ArrayList<Resource> sources,
-			ArrayList<Resource> targets, String propertyName, double _theta) {
-		
-		double theta = Transform.toDistance(_theta);
+			ArrayList<Resource> targets, String propertyName, double theta) {
 		
 		ArrayList<Couple> results = new ArrayList<Couple>();
 
-		double tau = theta / ((MultiSimWeightedEditSimilarity) similarity).getMinWeight();
+		double tau = Transform.toDistance(theta) / ((MultiSimWeightedEditSimilarity) similarity).getMinWeight();
 		
 		long start = System.currentTimeMillis();
 		
@@ -98,6 +94,7 @@ public class MultiSimReededFilter extends MultiSimFilter {
 				reededCore(s, t, sp, tp, index.get(sp), index.get(tp), tau, theta, results);
 			}
 		}
+		System.out.println();
 				
 		if(this.isVerbose()) {
 			double compTime = (System.currentTimeMillis()-start)/1000.0;
@@ -123,15 +120,17 @@ public class MultiSimReededFilter extends MultiSimFilter {
 			// (...) + (size % 2);
 			if(Math.ceil(exclDisjSize(cs, ct) / 2.0) <= tau) {
 				//  Verification.
-				double d = similarity.getSimilarity(sp, tp);
-				if(d <= theta) {
+				double sim = similarity.getSimilarity(sp, tp);
+				if(sim >= theta) {
 					Couple c = new Couple(s, t);
-					c.setDistance(d, similarity.getIndex());
+					c.setDistance(sim, similarity.getIndex());
 					results.add(c);
+//					System.out.println(sp+"\n"+tp+"\n"+sim+"\n-----");
 				}
 			}
 		}
 		
+
 	}
 
 

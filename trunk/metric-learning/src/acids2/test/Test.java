@@ -65,8 +65,7 @@ public class Test {
 //			MainAlgorithm ma = new MainAlgorithm(sources, targets, k, beta, mip, tfidf);
 //			RandomSetting ma = new RandomSetting(sources, targets, k, beta, mip, H, tfidf);
 //			NaiveSetting ma = new NaiveSetting(sources, targets, H, tfidf, datasetPath);
-//			ActiveSetting ma = new ActiveSetting(sources, targets, H, tfidf, datasetPath);
-			MultiSimSetting ma = new MultiSimSetting(sources, targets, H, datasetPath);
+			ActiveSetting ma = new ActiveSetting(sources, targets, H, tfidf, datasetPath);
 			
 			fsl.add(ma.getFs());
 		}

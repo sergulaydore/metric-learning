@@ -27,7 +27,10 @@ public class MultiSimCosineSimilarity extends MultiSimStringSimilarity {
 	@Override
 	public double getSimilarity(String a, String b) {
 		CosineSimilarity cs = new CosineSimilarity();
-		return cs.getSimilarity(a, b);
+		double sim = cs.getSimilarity(a, b);
+		if(Double.isNaN(sim))
+			return 0.0;
+		return sim;
 	}
 
 	@Override

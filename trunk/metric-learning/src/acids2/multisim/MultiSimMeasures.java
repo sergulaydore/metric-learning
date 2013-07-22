@@ -1,7 +1,12 @@
 package acids2.multisim;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
+import libsvm.svm_parameter;
+import utility.GammaComparator;
+import utility.Statistics;
+import acids2.Couple;
 import acids2.Resource;
 import acids2.classifiers.svm.SvmHandler;
 
@@ -12,14 +17,14 @@ public class MultiSimMeasures {
 	private SvmHandler svmHandler;
 	private MultiSimSetting setting;
 	
-	public MultiSimMeasures(MultiSimSetting setting, SvmHandler svmHandler) {
+	public MultiSimMeasures(MultiSimSetting setting) {
 		
 		super();
 		this.setting = setting;
-		this.svmHandler = svmHandler;
+		this.svmHandler = setting.getSvmHandler();
 		
 		initialize();
-		
+		firstClassifier();
 	}
 	
 	public ArrayList<MultiSimSimilarity> getAllSimilarities() {
@@ -36,6 +41,30 @@ public class MultiSimMeasures {
 		return dim;
 	}
 	
+	public double computeThreshold(MultiSimSimilarity similarity) {
+		double[] w = svmHandler.getWLinear();
+		double theta = svmHandler.getTheta();
+		int index = similarity.getIndex();
+		
+		if(w[index] <= 0.0) {
+			similarity.setComputed(false);
+			return 0.0;
+		}
+		
+		double sum = 0;
+		for(int i=0; i<w.length; i++)
+			if(i != index && w[i] > 0)
+				sum += w[i];
+		double d = (theta - sum) / w[index];
+		
+		if(d <= 0) {
+			similarity.setComputed(false);
+			return 0.0;
+		}
+		
+		similarity.setComputed(true);
+		return d;
+	}
 	
 	/**
 	 * Initializes the properties checking their data types. Eventually calls weights and extrema computation.
@@ -80,10 +109,87 @@ public class MultiSimMeasures {
 			}
 		}
 		
-		svmHandler.setN(propertyNames.size());
-		svmHandler.initW();
+		svmHandler.setN(this.getAllSimilarities().size());
+//		svmHandler.initW();
 	}
+	
+	/**
+	 * Finds first classifier.
+	 */
+	private void firstClassifier() {
+		ArrayList<Resource> sources = setting.getSources();
+		ArrayList<Resource> targets = setting.getTargets();
+		
+		ArrayList<Couple> couples = new ArrayList<Couple>();
+		ArrayList<MultiSimSimilarity> sims = this.getAllSimilarities();
+		SvmHandler support = new SvmHandler(svm_parameter.LINEAR);
+		
+		// number of negatives for each positive
+		int rate = Math.max(sources.size(), targets.size());
+		
+		// choosing 10 virtually positive examples
+		int nvp = 10;
+		int ntot = rate * nvp;
+		
+		System.out.print("Computing first classifier");
+		double[][] temp = new double[sims.size()][ntot];
+		for(int i=0; i<ntot; i++) {
+			Resource s = sources.get((int) (sources.size()*Math.random()));
+			Resource t = targets.get((int) (targets.size()*Math.random()));
+			Couple c = new Couple(s, t);
+			couples.add(c);
+			
+			for(MultiSimSimilarity sim : sims) {
+				double d = sim.getSimilarity(s.getPropertyValue(sim.getProperty().getName()), 
+						t.getPropertyValue(sim.getProperty().getName()));
+				c.setDistance(d, sim.getIndex());
+				temp[sim.getIndex()][i] = d;
+			}
 
+			c.setGamma(support.computeGamma(c, 1.0));
+
+			if(i % rate == 0)
+				System.out.print(".");
+		}
+		System.out.println(" done.");
+		Collections.sort(couples, new GammaComparator());
+		
+		ArrayList<Couple> pos = new ArrayList<Couple>();
+		ArrayList<Couple> neg = new ArrayList<Couple>();
+		
+		for(int i=0; i<couples.size(); i++) {
+			Couple c = couples.get(i);
+			if(i < nvp) {
+				pos.add(c);
+				c.setPositive(true);
+			} else {
+				neg.add(c);
+				c.setPositive(false);
+			}
+		}
+		
+		System.out.println("\npositives:");
+		for(Couple c : pos)
+			c.info();
+		
+		support.setN(sims.size());
+		support.trace(pos, neg);
+		
+		support.evaluateOn(couples);
+		
+		svmHandler.setWLinear(support.getWLinear());
+		svmHandler.setTheta(support.getTheta());
+		
+		for(int j=0; j<temp.length; j++) {
+			double[] tempv = temp[j];
+			Statistics stat = new Statistics(tempv);
+			double perc = stat.getPercentile(1.0 - 1.0 / rate);
+			sims.get(j).setEstimatedMeanValue(perc);
+			System.out.println("Stats(sim_"+j+") = {"+perc+"}");
+		}
+
+	}
+	
 	public ArrayList<MultiSimProperty> getProps() {
 		return props;
 	}
@@ -94,6 +200,26 @@ public class MultiSimMeasures {
 
 	public MultiSimSetting getSetting() {
 		return setting;
+	}
+
+	public double computeMonteCarlo(MultiSimSimilarity sim) {
+		int index = sim.getIndex();
+		double min = 1;
+		// TODO With linear classifiers we could just check [y,0,...,0] to [y,1,...,1] with `y` as random number in position `index`.
+		for(int a=0; a<100000; a++) {
+			double[] x = new double[svmHandler.getN()];
+			for(int i=0; i<x.length; i++)
+				x[i] = Math.random();
+			if(svmHandler.classify(x)) {
+				if(x[index] < min)
+					min = x[index];
+			}
+		}
+		min = (int)(min*10) / 10.0;
+		// XXX 0.01 is arbitrary...
+		sim.setComputed(min >= 0.01 ? true : false);
+		System.out.println("MC method for "+index+" = "+min);
+		return min;
 	}
 
 	

@@ -27,5 +27,9 @@ public class MultiSimRanking implements Comparable<MultiSimRanking> {
 	public Double getWeight() {
 		return weight;
 	}
+	
+	public String toString() {
+		return sim.getName()+" | "+sim.getProperty().getName()+" | "+weight;
+	}
 
 }

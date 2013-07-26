@@ -1,10 +1,14 @@
 package acids2.multisim;
 
+import utility.Statistics;
+
 public abstract class MultiSimSimilarity {
 
 	protected MultiSimProperty property;
 	
 	protected int index;
+	
+	private Statistics stats;
 
 	private boolean computed = false;
 	
@@ -41,11 +45,19 @@ public abstract class MultiSimSimilarity {
 		return estimatedThreshold;
 	}
 
-	public void setEstimatedMeanValue(double estimatedThreshold) {
+	public void setEstimatedThreshold(double estimatedThreshold) {
 		this.estimatedThreshold = estimatedThreshold;
 	}
 
 	public abstract double getSimilarity(String a, String b);
+
+	public Statistics getStats() {
+		return stats;
+	}
+
+	public void setStats(Statistics stats) {
+		this.stats = stats;
+	}
 	
 
 }

@@ -46,46 +46,19 @@ public class MultiSimSetting extends TestUnit {
 		ArrayList<MultiSimSimilarity> sims = measures.getAllSimilarities();
 		ArrayList<Couple> couples = new ArrayList<Couple>();
 		
-		// TODO The following works only with linear classifiers. Implement one for polynomial classifiers.
-		// TODO Use computeThreshold or, if it fails, the code below.
-		// TODO Esteem missing values.
-		
-		ArrayList<MultiSimRanking> ranking = new ArrayList<MultiSimRanking>();
-		
-		double[] w = m.getWLinear();
-		for(int i=0; i<sims.size(); i++)
-			if(sims.get(i).getFilter() != null)
-				ranking.add(new MultiSimRanking(sims.get(i), w[i]));
-		Collections.sort(ranking);
-		
-		for(MultiSimRanking rank : ranking) {
-			MultiSimSimilarity simPivot = rank.getSim();
-			MultiSimProperty p = simPivot.getProperty();
-			System.out.println("Processing similarity "+simPivot.getName()+" of "+p.getName());
-			
-			ArrayList<Couple> input = new ArrayList<Couple>(couples);
-			simPivot.setComputed(true);
-			double def = simPivot.getEstimatedThreshold();
-			if(input.isEmpty()) {
-				couples = simPivot.getFilter().filter(sources, targets, p.getName(), def);
-				System.out.println("thr = "+def+"\tsize = "+couples.size());
-				break;
-			} else {
-				couples = simPivot.getFilter().filter(input, p.getName(), def);
-				System.out.println("thr = "+def+"\tsize = "+couples.size());
-				break;
-			}
-		}
-		
-		computeRemaining(sims, couples);
-		
 		ArrayList<Couple> labelled = new ArrayList<Couple>();
 
 		for(int i=0; labelled.size() < K; i++) {
 			
 			System.out.println("\n### Iteration = "+i+" ###");
 			
-			// TODO Call the code above again. 
+			// TODO The following works only with linear classifiers. Implement one for polynomial classifiers.
+			couples = filtering(sims);
+			if(couples == null)
+				return;
+			computeRemaining(sims, couples);
+			for(Couple c : couples) 
+				measures.estimateMissingValues(c);
 			
 //			if(i > 0) {
 //				ArrayList<Couple> temp = new ArrayList<Couple>();
@@ -192,6 +165,35 @@ public class MultiSimSetting extends TestUnit {
 
 	}
 	
+	private ArrayList<Couple> filtering(ArrayList<MultiSimSimilarity> sims) {
+		
+		ArrayList<Couple> couples = new ArrayList<Couple>();
+		ArrayList<MultiSimRanking> ranking = new ArrayList<MultiSimRanking>();
+		
+		double[] w = m.getWLinear();
+		double[] means = measures.getMeans();
+		for(int i=0; i<sims.size(); i++)
+			if(sims.get(i).getFilter() != null)
+				ranking.add(new MultiSimRanking(sims.get(i), w[i] * means[i]));
+		if(ranking.isEmpty()) {
+			System.err.println("No filter available.");
+			return null;
+		}
+		Collections.sort(ranking);
+		System.out.println(ranking);
+		
+		MultiSimSimilarity simPivot = ranking.get(0).getSim();
+		MultiSimProperty p = simPivot.getProperty();
+		System.out.println("Processing similarity "+simPivot.getName()+" of "+p.getName());
+		simPivot.setComputed(true);
+		double def = measures.computeThreshold(simPivot);
+		if(def == 0.0)
+			def = simPivot.getEstimatedThreshold();
+		couples = simPivot.getFilter().filter(sources, targets, p.getName(), def);
+		System.out.println("thr = "+def+"\tsize = "+couples.size());
+		return couples;
+	}
+
 	private void computeRemaining(ArrayList<MultiSimSimilarity> sims, ArrayList<Couple> couples) {
 		System.out.print("Computing similarities");
 		for(MultiSimSimilarity sim : sims) {

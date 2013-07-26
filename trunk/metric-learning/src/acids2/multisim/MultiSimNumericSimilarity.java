@@ -71,7 +71,7 @@ public class MultiSimNumericSimilarity extends MultiSimSimilarity {
 	private double normalize(double value) {
 		// incomplete information means similarity = 0
 		if(Double.isNaN(value))
-			return 0.0;
+			return Double.NaN;
 		double denom = Math.max(extrema.get("maxT") - extrema.get("minS"), 
 				extrema.get("maxS") - extrema.get("minT"));
 		if(denom == 0.0)

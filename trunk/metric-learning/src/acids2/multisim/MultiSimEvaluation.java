@@ -69,6 +69,8 @@ public class MultiSimEvaluation {
 				c.setDistance(sim.getSimilarity(src.getPropertyValue(sim.getProperty().getName()),
 						tgt.getPropertyValue(sim.getProperty().getName())), sim.getIndex());
 			
+			setting.getMeasures().estimateMissingValues(c);
+			
 			if(svmHandler.classify(c))
 				tp++;
 			else
@@ -109,6 +111,9 @@ public class MultiSimEvaluation {
 					c.setDistance(sim.getSimilarity(c.getSource().getPropertyValue(sim.getProperty().getName()),
 							c.getTarget().getPropertyValue(sim.getProperty().getName())), sim.getIndex());
 		
+		for(Couple c : intersection) 
+			setting.getMeasures().estimateMissingValues(c);
+		
 		for(Couple c : intersection)
 			if(!setting.getOracle().ask(c)) {
 				if(!svmHandler.classify(c))
@@ -141,6 +146,7 @@ public class MultiSimEvaluation {
 					String p = sim.getProperty().getName();
 					val[j] = sim.getSimilarity(s.getPropertyValue(p), t.getPropertyValue(p));
 				}
+				val = setting.getMeasures().estimateMissingValues(val);
 				if(mapping.contains(s.getID()+"#"+t.getID())) {
 					if(svmHandler.classify(val))
 						tp++;

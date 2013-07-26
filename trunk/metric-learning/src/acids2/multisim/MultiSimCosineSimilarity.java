@@ -28,8 +28,8 @@ public class MultiSimCosineSimilarity extends MultiSimStringSimilarity {
 	public double getSimilarity(String a, String b) {
 		CosineSimilarity cs = new CosineSimilarity();
 		double sim = cs.getSimilarity(a, b);
-		if(Double.isNaN(sim))
-			return 0.0;
+//		if(Double.isNaN(sim))
+//			return 0.0;
 		return sim;
 	}
 

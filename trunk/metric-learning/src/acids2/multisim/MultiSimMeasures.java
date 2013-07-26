@@ -26,7 +26,60 @@ public class MultiSimMeasures {
 		initialize();
 		firstClassifier();
 	}
+
+	public double[] estimateMissingValues(double[] val) {
+		double[] res = new double[val.length];
+		double[] means = this.getMeans();
+		for(int i=0; i<val.length; i++) {
+			if(Double.isNaN(val[i])) {
+				int n = 0;
+				double sum = 0;
+				for(int j=0; j<val.length; j++) {
+					double d2 = val[j];
+					if(i != j && !Double.isNaN(d2)) {
+						sum += d2 / means[j];
+						n++;
+					}
+				}
+				double est = sum * means[i] / n;
+				if(est > 1.0)
+					est = 1.0;
+				res[i] = est;
+//				System.out.print(est+" predicted; ");
+			} else {
+				res[i] = val[i];
+			}
+		}
+//		for(double v : val)
+//			System.out.print(v+", ");
+//		System.out.println();
+		return res;
+	}
 	
+	public void estimateMissingValues(Couple c) {
+		// first method (not symmetric)
+		ArrayList<MultiSimSimilarity> sims = getAllSimilarities();
+		for(MultiSimSimilarity sim : sims) {
+			double d = c.getDistanceAt(sim.getIndex());
+			if(Double.isNaN(d)) {
+				int n = 0;
+				double sum = 0;
+				for(MultiSimSimilarity sim2 : sims) {
+					double d2 = c.getDistanceAt(sim2.getIndex());
+					if(sim != sim2 && !Double.isNaN(d2)) {
+						sum += d2 / sim2.getStats().getMean();
+						n++;
+					}
+				}
+				double est = sum * sim.getStats().getMean() / n;
+				if(est > 1.0)
+					est = 1.0;
+				c.setDistance(est, sim.getIndex());
+//				System.out.println(c.getDistances()+" -> "+est);
+			}
+		}
+	}
+
 	public ArrayList<MultiSimSimilarity> getAllSimilarities() {
 		ArrayList<MultiSimSimilarity> sims = new ArrayList<MultiSimSimilarity>();
 		for(MultiSimProperty p : props)
@@ -132,20 +185,26 @@ public class MultiSimMeasures {
 		int ntot = rate * nvp;
 		
 		System.out.print("Computing first classifier");
-		double[][] temp = new double[sims.size()][ntot];
-		for(int i=0; i<ntot; i++) {
+		double[][] simArray = new double[sims.size()][ntot];
+		bigloop: for(int i=0; i<ntot; i++) {
 			Resource s = sources.get((int) (sources.size()*Math.random()));
 			Resource t = targets.get((int) (targets.size()*Math.random()));
 			Couple c = new Couple(s, t);
-			couples.add(c);
 			
 			for(MultiSimSimilarity sim : sims) {
 				double d = sim.getSimilarity(s.getPropertyValue(sim.getProperty().getName()), 
 						t.getPropertyValue(sim.getProperty().getName()));
+				if(Double.isNaN(d)) {
+					i--;
+					continue bigloop;
+				}
 				c.setDistance(d, sim.getIndex());
-				temp[sim.getIndex()][i] = d;
+				simArray[sim.getIndex()][i] = d;
 			}
 
+//			System.out.println(c.getDistances());
+			
+			couples.add(c);
 			c.setGamma(support.computeGamma(c, 1.0));
 
 			if(i % rate == 0)
@@ -180,12 +239,12 @@ public class MultiSimMeasures {
 		svmHandler.setWLinear(support.getWLinear());
 		svmHandler.setTheta(support.getTheta());
 		
-		for(int j=0; j<temp.length; j++) {
-			double[] tempv = temp[j];
-			Statistics stat = new Statistics(tempv);
+		for(int j=0; j<simArray.length; j++) {
+			Statistics stat = new Statistics(simArray[j]);
 			double perc = stat.getPercentile(1.0 - 1.0 / rate);
-			sims.get(j).setEstimatedMeanValue(perc);
-			System.out.println("Stats(sim_"+j+") = {"+perc+"}");
+			sims.get(j).setEstimatedThreshold(perc);
+			sims.get(j).setStats(stat);
+			System.out.println("Stats(sim_"+j+") = {"+stat.getMean()+", "+perc+"}");
 		}
 
 	}
@@ -222,5 +281,12 @@ public class MultiSimMeasures {
 		return min;
 	}
 
+	public double[] getMeans() {
+		ArrayList<MultiSimSimilarity> sims = this.getAllSimilarities();
+		double[] means = new double[sims.size()];
+		for(int i=0; i<means.length; i++)
+			means[i] = sims.get(i).getStats().getMean();
+		return means;
+	}
 	
 }

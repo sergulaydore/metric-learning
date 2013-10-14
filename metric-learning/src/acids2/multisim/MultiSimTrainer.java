@@ -17,19 +17,20 @@ public class MultiSimTrainer {
 	 * Ascending or descending order depends on <i>nearest</i>.
 	 * @param primary Set of couples, usually the set of positive or negative examples.
 	 * @param secondary Set of couples, usually the complementary of primary.
-	 * @param labelled Set of labeled couples so far.
+	 * @param inferred Set of logically inferred (or labeled) couples so far.
+	 * @param labelled Set of manually labeled couples so far.
 	 * @param poslbl Set of positive-labeled couples.
 	 * @param neglbl Set of negative-labeled couples.
 	 * @param size Query size.
 	 * @param nearest Select the nearest couples (points) to the classifier.
 	 */
 	public void train(ArrayList<Couple> primary, ArrayList<Couple> secondary, 
-			ArrayList<Couple> labelled, ArrayList<Couple> poslbl, ArrayList<Couple> neglbl, int size, boolean nearest) {
+			ArrayList<Couple> inferred, ArrayList<Couple> labelled, ArrayList<Couple> poslbl, ArrayList<Couple> neglbl, int size, boolean nearest) {
 		
 		ArrayList<Couple> temp = new ArrayList<Couple>();
 		for(int i=0; temp.size() < size && i < primary.size(); i++) {
 			Couple c = nearest ? primary.get(i) : primary.get(primary.size()-i-1);
-			if(!labelled.contains(c)) {
+			if(!inferred.contains(c)) {
 				temp.add(c);
 				if(setting.getOracle().ask(c))
 					poslbl.add(c);

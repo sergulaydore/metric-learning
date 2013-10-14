@@ -28,6 +28,7 @@ public class MultiSimMeasures {
 	}
 
 	public double[] estimateMissingValues(double[] val) {
+		/*
 		double[] res = new double[val.length];
 		double[] means = this.getMeans();
 		for(int i=0; i<val.length; i++) {
@@ -54,10 +55,15 @@ public class MultiSimMeasures {
 //			System.out.print(v+", ");
 //		System.out.println();
 		return res;
+		*/ 
+		for(int i=0; i<val.length; i++)
+			if(Double.isNaN(val[i]))
+				val[i] = 0.0;
+		return val;
 	}
 	
 	public void estimateMissingValues(Couple c) {
-		// first method (not symmetric)
+/*		// first method (not symmetric)
 		ArrayList<MultiSimSimilarity> sims = getAllSimilarities();
 		for(MultiSimSimilarity sim : sims) {
 			double d = c.getDistanceAt(sim.getIndex());
@@ -78,6 +84,10 @@ public class MultiSimMeasures {
 //				System.out.println(c.getDistances()+" -> "+est);
 			}
 		}
+*/
+		for(MultiSimSimilarity sim : getAllSimilarities())
+			if(Double.isNaN(c.getDistanceAt(sim.getIndex())))
+				c.setDistance(0.0, sim.getIndex());
 	}
 
 	public ArrayList<MultiSimSimilarity> getAllSimilarities() {

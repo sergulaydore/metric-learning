@@ -108,6 +108,8 @@ public class MultiSimCrowFilter extends MultiSimFilter {
 		}
 		int c1=0,c2=0,c3=0,c4=0;
 		double kappa = (2 - theta) / theta;
+		System.out.print("Filtering");
+		int i=0;
 		for(Resource s : sources) {
 			String src = s.getPropertyValue(propertyName);
 			ArrayList<String> ng0s = ngLs.get(s);
@@ -148,7 +150,10 @@ public class MultiSimCrowFilter extends MultiSimFilter {
 					}
 				}
 			}
+			if(++i % 100 == 0)
+				System.out.print(".");
 		}
+		System.out.println();
 		
 		System.out.println((sources.size()*targets.size())+"\tDEF="+c1+"\tLEN="+c2+"\tREF="+c3+"\tIND="+c4+"\t"+results.size());
 		

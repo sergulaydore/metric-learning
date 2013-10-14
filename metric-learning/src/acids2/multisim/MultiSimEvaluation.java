@@ -106,7 +106,7 @@ public class MultiSimEvaluation {
 		}
 		
 		for(MultiSimSimilarity sim : sims)
-			if(!sim.isComputed())
+			if(!sim.isComputed() || sim.getFilter() == null)
 				for(Couple c : intersection)
 					c.setDistance(sim.getSimilarity(c.getSource().getPropertyValue(sim.getProperty().getName()),
 							c.getTarget().getPropertyValue(sim.getProperty().getName())), sim.getIndex());
@@ -138,7 +138,8 @@ public class MultiSimEvaluation {
 		double[] val = new double[sims.size()];
 		
 		System.out.print("Evaluating");
-		int count = 0;
+		System.out.println();
+		int count = 0;		
 		for(Resource s : sources) {
 			for(Resource t : targets) {
 				for(int j=0; j<sims.size(); j++) {
@@ -150,12 +151,15 @@ public class MultiSimEvaluation {
 				if(mapping.contains(s.getID()+"#"+t.getID())) {
 					if(svmHandler.classify(val))
 						tp++;
-					else
+					else {
 						fn++;
+//						System.out.println("false neg: "+s.getID()+"#"+t.getID());
+					}
 				} else {
-					if(svmHandler.classify(val))
+					if(svmHandler.classify(val)) {
 						fp++;
-					else
+//						System.out.println("false pos: "+s.getID()+"#"+t.getID());
+					} else
 						tn++;
 				}
 				if(++count % 100000 == 0)

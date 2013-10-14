@@ -42,43 +42,27 @@ public class MultiSimSetting extends TestUnit {
 	}
 	
 	public void run() {
-
+		
 		ArrayList<MultiSimSimilarity> sims = measures.getAllSimilarities();
 		ArrayList<Couple> couples = new ArrayList<Couple>();
 		
 		ArrayList<Couple> labelled = new ArrayList<Couple>();
-
-		for(int i=0; labelled.size() < K; i++) {
+		ArrayList<Couple> inferred = new ArrayList<Couple>();
+		ArrayList<Resource> processed = new ArrayList<Resource>();
+		
+		for(int i=1; labelled.size() < K; i++) {
 			
 			System.out.println("\n### Iteration = "+i+" ###");
 			
 			// TODO The following works only with linear classifiers. Implement one for polynomial classifiers.
-			couples = filtering(sims);
-			if(couples == null)
-				return;
-			computeRemaining(sims, couples);
-			for(Couple c : couples) 
-				measures.estimateMissingValues(c);
-			
-//			if(i > 0) {
-//				ArrayList<Couple> temp = new ArrayList<Couple>();
-//				for(MultiSimSimilarity sim : sims) {
-//					ArrayList<Couple> input = new ArrayList<Couple>(temp);
-//					double thr = m.computeMonteCarlo(sim);
-//					if(sim.isComputed() && sim.getFilter() != null) {
-//						if(input.isEmpty())
-//							temp = sim.getFilter().filter(sources, targets, sim.getProperty().getName(), thr);
-//						else
-//							temp = sim.getFilter().filter(input, sim.getProperty().getName(), thr);
-//					}
-//				}
-//				while(temp.size() >= mapSize * 10)
-//					temp.remove((int)(temp.size() * Math.random()));
-//				if(!temp.isEmpty()) {
-//					computeRemaining(sims, temp);
-//					couples = temp;
-//				}
-//			}
+			if(i == 1) {
+				couples = filtering(sims);
+				if(couples == null)
+					return;
+				computeRemaining(sims, couples); // TODO Shouldn't it be included in filtering(sims)?
+				for(Couple c : couples)
+					measures.estimateMissingValues(c); // TODO Shouldn't it be included in filtering(sims)?
+			}
 			
 			ArrayList<Couple> posInformative = new ArrayList<Couple>();
 			ArrayList<Couple> negInformative = new ArrayList<Couple>();
@@ -99,68 +83,80 @@ public class MultiSimSetting extends TestUnit {
 			ArrayList<Couple> poslbl = new ArrayList<Couple>();
 			ArrayList<Couple> neglbl = new ArrayList<Couple>();
 			
-			for(Couple c : labelled)
-				if(c.isPositive())
-					poslbl.add(c);
-				else
-					neglbl.add(c);
-			
-			if(i == 0) {
-				// required for right classifier orientation
+			if(i == 1) {
+				// optional for right classifier orientation
 //				orientate(poslbl, neglbl, labelled);
 				// train with dk most likely positive examples
-				trainer.train(posInformative, negInformative, labelled, poslbl, neglbl, this.dk, false);
+				trainer.train(posInformative, negInformative, inferred, labelled, poslbl, neglbl, this.dk, false);
 			}
 			
 			// train with dk most informative positive examples
-			trainer.train(posInformative, negInformative, labelled, poslbl, neglbl, this.dk, true);
+			trainer.train(posInformative, negInformative, inferred, labelled, poslbl, neglbl, this.dk, true);
 			// train with dk most informative negative examples
-			trainer.train(negInformative, posInformative, labelled, poslbl, neglbl, this.dk, true);
+			trainer.train(negInformative, posInformative, inferred, labelled, poslbl, neglbl, this.dk, true);
 			
-//			// train with dk random examples
-//			for(int j=0; j<this.dk; j++) {
-//				Resource s = sources.get((int) (sources.size() * Math.random()));
-//				Resource t = targets.get((int) (targets.size() * Math.random()));
-//				Couple c = new Couple(s, t);
-//				for(Property p : props) {
-//					double d = p.getFilter().getDistance(s.getPropertyValue(p.getName()), t.getPropertyValue(p.getName()));
-//					c.setDistance(d, p.getIndex());
-//				}
-//				labelled.add(c);
-//				if(askOracle(c)) {
-//					c.setPositive(true);
-//					poslbl.add(c);
-//				} else {
-//					c.setPositive(false);
-//					neglbl.add(c);
-//				}
-//			}
+			for(Couple c : labelled)
+				if(c.isPositive()) {
+					final int NEG = 10;
+					poslbl.add(c);
+					Resource s = c.getSource(), t = c.getTarget();
+					if(!processed.contains(s)) {
+//						for(Resource t1 : targets) {
+						for(int j=0; j<NEG; j++) {
+							Resource t1 = targets.get((int) (targets.size()*Math.random()));
+							if(t1 == t) { j--; continue; }
+							Couple c1 = new Couple(s, t1);
+							for(MultiSimSimilarity sim : sims)
+								c1.setDistance(sim.getSimilarity(s.getPropertyValue(sim.getProperty().getName()),
+										t1.getPropertyValue(sim.getProperty().getName())), sim.getIndex());
+							measures.estimateMissingValues(c1);
+							c1.setPositive(false);
+							neglbl.add(c1);
+							inferred.add(c1);
+						}
+						processed.add(s);
+					}
+					if(!processed.contains(t)) {
+//						for(Resource s1 : sources) {
+						for(int j=0; j<NEG; j++) {
+							Resource s1 = sources.get((int) (sources.size()*Math.random()));
+							if(s1 == s) { j--; continue; }
+							Couple c1 = new Couple(s1, t);
+							for(MultiSimSimilarity sim : sims)
+								c1.setDistance(sim.getSimilarity(s1.getPropertyValue(sim.getProperty().getName()),
+										t.getPropertyValue(sim.getProperty().getName())), sim.getIndex());
+							measures.estimateMissingValues(c1);
+							c1.setPositive(false);
+							neglbl.add(c1);
+							inferred.add(c1);
+						}
+						processed.add(t);
+					}
+				} else
+					neglbl.add(c);
 			
+			inferred.addAll(labelled);
+						
 			System.out.println("Labeled pos: "+poslbl.size());
 			System.out.println("Labeled neg: "+neglbl.size());
 			
-			boolean svmResponse = m.trace(poslbl, neglbl);
-			if(!svmResponse) {
+			if(!m.trace(poslbl, neglbl)) {
 				// ask for more
 				continue;
 			}
-			eval.evaluateOn(labelled);
+			eval.evaluateOn(inferred);
 
-			// last iteration
-//			if(labelled.size() >= K) {
-//				System.out.println("Converging...");
-//				for(int j=0; m.getTheta() == -1.0 && j < 10; j++) {
-//					trainer.train(posInformative, negInformative, labelled, poslbl, neglbl, 1, true);
-//					m.trace(poslbl, neglbl);
-//				}
-//			}
 		}
 		
-		System.out.println("Evaluating on filtered subset:");
+		System.out.println("\nEvaluating on filtered subset:");
 		eval.labelAll(couples);
 		eval.evaluateOn(couples);
-		
-		
+
+		System.out.println("\nEvaluating on inferred subset:");
+		eval.labelAll(inferred);
+		eval.evaluateOn(inferred);
+
+		System.out.println();
 		eval.fastEvaluation(sources, targets);
 
 	}
@@ -173,7 +169,7 @@ public class MultiSimSetting extends TestUnit {
 		double[] w = m.getWLinear();
 		double[] means = measures.getMeans();
 		for(int i=0; i<sims.size(); i++)
-			if(sims.get(i).getFilter() != null)
+			if(sims.get(i).getFilter() != null && !(sims.get(i) instanceof MultiSimNumericSimilarity))
 				ranking.add(new MultiSimRanking(sims.get(i), w[i] * means[i]));
 		if(ranking.isEmpty()) {
 			System.err.println("No filter available.");
@@ -185,10 +181,15 @@ public class MultiSimSetting extends TestUnit {
 		MultiSimSimilarity simPivot = ranking.get(0).getSim();
 		MultiSimProperty p = simPivot.getProperty();
 		System.out.println("Processing similarity "+simPivot.getName()+" of "+p.getName());
+		
+//		double def = measures.computeThreshold(simPivot);
+//		if(def == 0.0)
+			double def = simPivot.getEstimatedThreshold();
+		
+		for(MultiSimSimilarity sim : sims)
+			sim.setComputed(false);
 		simPivot.setComputed(true);
-		double def = measures.computeThreshold(simPivot);
-		if(def == 0.0)
-			def = simPivot.getEstimatedThreshold();
+
 		couples = simPivot.getFilter().filter(sources, targets, p.getName(), def);
 		System.out.println("thr = "+def+"\tsize = "+couples.size());
 		return couples;
@@ -198,14 +199,10 @@ public class MultiSimSetting extends TestUnit {
 		System.out.print("Computing similarities");
 		for(MultiSimSimilarity sim : sims) {
 			MultiSimProperty p = sim.getProperty();
-			if(!sim.isComputed()) {
-				for(Couple c : couples) {
-					Resource s = c.getSource();
-					Resource t = c.getTarget();
-					double d = sim.getSimilarity(s.getPropertyValue(p.getName()), t.getPropertyValue(p.getName()));
-					c.setDistance(d, sim.getIndex());
-				}
-			}
+			if(!sim.isComputed())
+				for(Couple c : couples)
+					c.setDistance(sim.getSimilarity(c.getSource().getPropertyValue(p.getName()), 
+							c.getTarget().getPropertyValue(p.getName())), sim.getIndex());
 			System.out.print(".");
 		}
 		System.out.println();

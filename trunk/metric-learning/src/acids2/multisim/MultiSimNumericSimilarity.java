@@ -9,6 +9,7 @@ import acids2.Resource;
 public class MultiSimNumericSimilarity extends MultiSimSimilarity {
 	
 	private HashMap<String, Double> extrema = new HashMap<String, Double>();
+	private MultiSimNumericFilter filter = new MultiSimNumericFilter(this);
 
 	public MultiSimNumericSimilarity(MultiSimProperty property, int index) {
 		super(property, index);
@@ -82,8 +83,7 @@ public class MultiSimNumericSimilarity extends MultiSimSimilarity {
 
 	@Override
 	public MultiSimFilter getFilter() {
-		// TODO Auto-generated method stub
-		return null;
+		return filter;
 	}
 
 }

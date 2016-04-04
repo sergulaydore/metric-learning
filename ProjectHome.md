@@ -1,0 +1,1 @@
+Using support vector machines and perceptron learning to improve the discovery of link discovery specifications and configurations for Linked Data consumption.
